@@ -1,0 +1,64 @@
+{% extends 'myapp/base.html' %}
+{% block titulo %}Empresas{% endblock %}
+
+{% block contenido %}
+<h3 class="mb-4">Empresas clientes</h3>
+
+<form method="post" class="row g-2 mb-4 align-items-end">
+    {% csrf_token %}
+    <div class="col-md-3">
+        <label class="form-label">Nombre</label>
+        <input type="text" name="nombre" class="form-control" required>
+    </div>
+    <div class="col-md-3">
+        <label class="form-label">Dirección</label>
+        <input type="text" name="direccion" class="form-control">
+    </div>
+    <div class="col-md-2">
+        <label class="form-label">CIF</label>
+        <input type="text" name="cif" class="form-control" required>
+    </div>
+    <div class="col-md-2">
+        <label class="form-label">Teléfono</label>
+        <input type="text" name="telefono" class="form-control">
+    </div>
+    <div class="col-md-2">
+        <button type="submit" class="btn btn-primary">Agregar</button>
+    </div>
+</form>
+
+<table class="table table-striped bg-white shadow-sm">
+    <thead>
+        <tr>
+            <th>Nombre</th>
+            <th>Dirección</th>
+            <th>CIF</th>
+            <th>Teléfonos</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for e in empresas %}
+        <tr>
+            <td>{{ e.nombre }}</td>
+            <td>{{ e.direccion|default:"—" }}</td>
+            <td>{{ e.cif }}</td>
+            <td>
+                {% for numero in e.telefonos %}
+                    {{ numero }}{% if not forloop.last %}, {% endif %}
+                {% empty %}
+                    —
+                {% endfor %}
+            </td>
+            <td>
+                <a href="{% url 'eliminar_empresa' e.id %}"
+                   class="btn btn-danger btn-sm"
+                   onclick="return confirm('¿Eliminar esta empresa?');">Eliminar</a>
+            </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="text-center text-muted">No hay empresas cargadas todavía.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

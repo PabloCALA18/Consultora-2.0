@@ -1,0 +1,35 @@
+{% extends 'myapp/base.html' %}
+{% block titulo %}Inicio{% endblock %}
+
+{% block contenido %}
+<h3 class="mb-4">Panel general</h3>
+<div class="row g-3">
+    <div class="col-md-4">
+        <div class="card text-center shadow-sm">
+            <div class="card-body">
+                <h5 class="card-title">Consultores</h5>
+                <p class="display-6">{{ total_consultores }}</p>
+                <a href="{% url 'consultores' %}" class="btn btn-outline-primary btn-sm">Ver</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-center shadow-sm">
+            <div class="card-body">
+                <h5 class="card-title">Empresas clientes</h5>
+                <p class="display-6">{{ total_empresas }}</p>
+                <a href="{% url 'empresas' %}" class="btn btn-outline-primary btn-sm">Ver</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-center shadow-sm">
+            <div class="card-body">
+                <h5 class="card-title">Proyectos</h5>
+                <p class="display-6">{{ total_proyectos }}</p>
+                <a href="{% url 'proyectos' %}" class="btn btn-outline-primary btn-sm">Ver</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

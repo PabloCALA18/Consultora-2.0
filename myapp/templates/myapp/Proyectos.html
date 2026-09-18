@@ -1,0 +1,46 @@
+{% extends 'myapp/base.html' %}
+{% block titulo %}Proyectos{% endblock %}
+
+{% block contenido %}
+<h3 class="mb-4">Proyectos</h3>
+
+<form method="post" class="row g-2 mb-4 align-items-end">
+    {% csrf_token %}
+    <div class="col-md-6">
+        <label class="form-label">Descripción</label>
+        <input type="text" name="descripcion" class="form-control" required>
+    </div>
+    <div class="col-md-3">
+        <label class="form-label">Coste</label>
+        <input type="number" step="0.01" name="coste" class="form-control" required>
+    </div>
+    <div class="col-md-3">
+        <button type="submit" class="btn btn-primary">Agregar</button>
+    </div>
+</form>
+
+<table class="table table-striped bg-white shadow-sm">
+    <thead>
+        <tr>
+            <th>Descripción</th>
+            <th>Coste</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for p in proyectos %}
+        <tr>
+            <td>{{ p.descripcion }}</td>
+            <td>${{ p.coste }}</td>
+            <td>
+                <a href="{% url 'eliminar_proyecto' p.id %}"
+                   class="btn btn-danger btn-sm"
+                   onclick="return confirm('¿Eliminar este proyecto?');">Eliminar</a>
+            </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="3" class="text-center text-muted">No hay proyectos cargados todavía.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}
