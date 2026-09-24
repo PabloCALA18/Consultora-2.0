@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Consultora</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --color-ember:#ff5900;
+    --color-abyss:#000710;
+    --color-carbon:#15191e;
+    --color-ink:#000000;
+    --color-paper:#ffffff;
+    --color-fog:#f3f3f7;
+    --color-mist:#b9bbc6;
+    --color-steel:#8b8d98;
+    --color-pewter:#6f737b;
+    --color-graphite:#60646c;
+    --font-inter:'Inter', ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:var(--font-inter);
+    color:var(--color-ink);
+    background:var(--color-paper);
+    font-feature-settings:"calt" 0,"liga" 0;
+  }
+  .wrap{max-width:1200px;margin:0 auto;padding:0 24px;}
+
+  /* Announcement bar */
+  .announcement{
+    background:var(--color-carbon);
+    color:var(--color-paper);
+    text-align:center;
+    font-size:12px;
+    font-weight:500;
+    letter-spacing:-0.01em;
+    padding:8px 16px;
+  }
+  .announcement a{color:var(--color-ember);text-decoration:none;}
+
+  /* Nav */
+  nav{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:20px 0;
+  }
+  .brand{font-size:20px;font-weight:600;letter-spacing:-0.01em;color:var(--color-ink);text-decoration:none;}
+  .btn-ember{
+    background:var(--color-ember);
+    color:var(--color-paper);
+    border:none;
+    border-radius:12px;
+    padding:8px 16px;
+    font-family:var(--font-inter);
+    font-size:14px;
+    font-weight:600;
+    letter-spacing:-0.01em;
+    text-decoration:none;
+    display:inline-block;
+    cursor:pointer;
+  }
+
+  /* Hero */
+  .hero{padding:64px 0 80px;}
+  .hero h1{
+    font-size:48px;
+    line-height:1.2;
+    letter-spacing:-0.025em;
+    font-weight:600;
+    max-width:640px;
+    margin:0 0 16px;
+  }
+  .hero p{
+    font-size:20px;
+    line-height:1.4;
+    letter-spacing:-0.01em;
+    color:var(--color-graphite);
+    max-width:560px;
+    margin:0 0 32px;
+  }
+
+  /* Stats */
+  .stats{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:16px;
+    margin-top:8px;
+  }
+  .stat-card{
+    background:var(--color-paper);
+    border:1px solid var(--color-mist);
+    border-radius:12px;
+    padding:24px;
+  }
+  .stat-card .num{
+    font-size:36px;
+    font-weight:600;
+    letter-spacing:-0.02em;
+    color:var(--color-ink);
+  }
+  .stat-card .label{
+    font-size:14px;
+    color:var(--color-graphite);
+    letter-spacing:-0.01em;
+    margin-top:4px;
+  }
+
+  /* Sections */
+  section.band{padding:64px 0;}
+  .band-fog{background:var(--color-fog);}
+  h2.section-title{
+    font-size:36px;
+    font-weight:600;
+    letter-spacing:-0.02em;
+    text-align:center;
+    margin:0 0 40px;
+  }
+
+  /* Empresas grid */
+  .empresas-grid{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:16px;
+  }
+  .empresa-chip{
+    background:var(--color-paper);
+    border:1px solid var(--color-mist);
+    border-radius:12px;
+    padding:16px;
+    text-align:center;
+    font-size:14px;
+    font-weight:500;
+    color:var(--color-graphite);
+  }
+
+  /* Proyectos cards */
+  .proyectos-grid{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:16px;
+  }
+  .proyecto-card{
+    background:var(--color-paper);
+    border:1px solid var(--color-mist);
+    border-radius:12px;
+    padding:24px;
+  }
+  .proyecto-card .desc{
+    font-size:16px;
+    font-weight:500;
+    letter-spacing:-0.01em;
+    margin:0 0 8px;
+  }
+  .proyecto-card .coste{
+    font-size:14px;
+    color:var(--color-ember);
+    font-weight:600;
+  }
+
+  .empty-note{
+    color:var(--color-pewter);
+    font-size:14px;
+    text-align:center;
+  }
+
+  /* CTA final */
+  .cta-final{
+    text-align:center;
+    padding:80px 0;
+  }
+  .cta-final h2{
+    font-size:36px;
+    font-weight:600;
+    letter-spacing:-0.02em;
+    margin:0 0 24px;
+  }
+
+  /* Footer */
+  footer{
+    background:var(--color-abyss);
+    color:var(--color-paper);
+    padding:48px 0;
+  }
+  footer .wrap{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:16px;
+  }
+  footer .brand{color:var(--color-paper);}
+  footer p{
+    color:var(--color-mist);
+    font-size:14px;
+    margin:0;
+  }
+
+  @media (max-width:768px){
+    .hero h1{font-size:36px;}
+    .stats{grid-template-columns:1fr;}
+    .empresas-grid{grid-template-columns:repeat(2,1fr);}
+    .proyectos-grid{grid-template-columns:1fr;}
+  }
+</style>
+</head>
+<body>
+
+<div class="announcement">
+  Sistema interno de gestión — acceso exclusivo para el equipo
+</div>
+
+<div class="wrap">
+  <nav>
+    <a class="brand" href="{% url 'home' %}">Consultora</a>
+    <a class="btn-ember" href="{% url 'login' %}">Iniciar sesión</a>
+  </nav>
+</div>
+
+<div class="wrap hero">
+  <h1>Convertimos proyectos complejos en resultados concretos.</h1>
+  <p>Somos una consultora que acompaña a las empresas en sus proyectos más importantes, con un equipo de consultores especializados en cada etapa.</p>
+
+  <div class="stats">
+    <div class="stat-card">
+      <div class="num">{{ total_proyectos }}</div>
+      <div class="label">Proyectos realizados</div>
+    </div>
+    <div class="stat-card">
+      <div class="num">{{ total_empresas }}</div>
+      <div class="label">Empresas clientes</div>
+    </div>
+    <div class="stat-card">
+      <div class="num">{{ total_consultores }}</div>
+      <div class="label">Consultores en el equipo</div>
+    </div>
+  </div>
+</div>
+
+<section class="band band-fog">
+  <div class="wrap">
+    <h2 class="section-title">Empresas que confiaron en nosotros</h2>
+    {% if empresas_clientes %}
+    <div class="empresas-grid">
+      {% for e in empresas_clientes %}
+        <div class="empresa-chip">{{ e.nombre }}</div>
+      {% endfor %}
+    </div>
+    {% else %}
+      <p class="empty-note">Todavía no hay empresas cargadas.</p>
+    {% endif %}
+  </div>
+</section>
+
+<section class="band">
+  <div class="wrap">
+    <h2 class="section-title">Proyectos destacados</h2>
+    {% if proyectos_destacados %}
+    <div class="proyectos-grid">
+      {% for p in proyectos_destacados %}
+        <div class="proyecto-card">
+          <p class="desc">{{ p.descripcion }}</p>
+          <p class="coste">${{ p.coste }}</p>
+        </div>
+      {% endfor %}
+    </div>
+    {% else %}
+      <p class="empty-note">Todavía no hay proyectos cargados.</p>
+    {% endif %}
+  </div>
+</section>
+
+<section class="band">
+  <div class="wrap cta-final">
+    <h2>¿Formás parte del equipo?</h2>
+    <a class="btn-ember" href="{% url 'login' %}">Iniciar sesión</a>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span class="brand">Consultora</span>
+    <p>&copy; {% now "Y" %} Consultora. Todos los derechos reservados.</p>
+  </div>
+</footer>
+
+</body>
+</html>

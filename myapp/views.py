@@ -25,6 +25,40 @@ def login_requerido(vista):
     return envoltorio
 
 
+def home_publico(request):
+    """
+    Página de inicio pública (institucional). No requiere login.
+    Muestra proyectos vendidos y empresas clientes como vidriera,
+    con un botón que lleva al login del personal.
+    """
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT COUNT(*) FROM proyecto")
+        total_proyectos = cursor.fetchone()[0]
+
+        cursor.execute("SELECT COUNT(*) FROM empresa_cliente")
+        total_empresas = cursor.fetchone()[0]
+
+        cursor.execute("SELECT COUNT(*) FROM consultor")
+        total_consultores = cursor.fetchone()[0]
+
+        cursor.execute(
+            "SELECT descripcion, coste FROM proyecto ORDER BY id DESC LIMIT 6"
+        )
+        proyectos_destacados = dictfetchall(cursor)
+
+        cursor.execute(
+            "SELECT nombre FROM empresa_cliente ORDER BY id DESC LIMIT 12"
+        )
+        empresas_clientes = dictfetchall(cursor)
+
+    return render(request, 'myapp/home.html', {
+        'total_proyectos': total_proyectos,
+        'total_empresas': total_empresas,
+        'total_consultores': total_consultores,
+        'proyectos_destacados': proyectos_destacados,
+        'empresas_clientes': empresas_clientes,
+    })
+
 # ---------- LOGIN / LOGOUT ----------
 
 def login_view(request):

@@ -78,9 +78,9 @@ DATABASES = {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'empresa_consultora',
         'USER': 'root',
-        'PASSWORD': '09sammel18',
+        'PASSWORD': 'Mz200509#',
         'HOST': 'localhost',
-        'PORT': '3306',
+        'PORT': '5000',
     }
 }
 
