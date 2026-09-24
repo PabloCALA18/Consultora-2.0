@@ -3,7 +3,70 @@
 <head>
     <meta charset="UTF-8">
     <title>{% block titulo %}Consultora{% endblock %}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --color-ember: #ff5900;
+            --color-abyss: #000710;
+            --color-carbon: #15191e;
+            --color-ink: #000000;
+            --color-paper: #ffffff;
+            --color-fog: #f3f3f7;
+            --color-mist: #b9bbc6;
+            --color-steel: #8b8d98;
+            --color-pewter: #6f737b;
+            --color-graphite: #60646c;
+            --radius: 12px;
+        }
+        body {
+            font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+            letter-spacing: -0.01em;
+            color: var(--color-ink);
+            background-color: var(--color-paper) !important;
+        }
+        .navbar-dark.bg-dark { background-color: var(--color-carbon) !important; }
+        .btn-primary {
+            background-color: var(--color-ember);
+            border-color: var(--color-ember);
+            border-radius: var(--radius);
+            font-weight: 600;
+        }
+        .btn-primary:hover, .btn-primary:focus {
+            background-color: #e04f00;
+            border-color: #e04f00;
+        }
+        .btn-outline-primary {
+            color: var(--color-ember);
+            border-color: var(--color-ember);
+            border-radius: var(--radius);
+        }
+        .btn-outline-primary:hover { background-color: var(--color-ember); border-color: var(--color-ember); color: #fff; }
+        .btn-outline-light, .btn-danger { border-radius: var(--radius); }
+        .card, .table, .form-control, .form-select { border-radius: var(--radius) !important; }
+        .card { border: 1px solid var(--color-mist); box-shadow: none !important; }
+        .shadow-sm { box-shadow: none !important; border: 1px solid var(--color-mist); }
+        .card-title { font-weight: 600; }
+        .display-6 { color: var(--color-ember); font-weight: 600; }
+        .text-muted { color: var(--color-pewter) !important; }
+        .form-label { color: var(--color-graphite); font-weight: 500; font-size: 14px; }
+        .alert-info {
+            background-color: var(--color-fog);
+            border: 1px solid var(--color-mist);
+            color: var(--color-graphite);
+            border-radius: var(--radius);
+        }
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--color-ink);
+            font-weight: 500;
+            text-decoration: none;
+            margin-bottom: 24px;
+        }
+        .back-link:hover { color: var(--color-ember); }
+    </style>
 </head>
 <body class="bg-light">
 
