@@ -130,3 +130,5 @@ MAILERS = {
         'BACKEND': 'django.core.mail.backends.console.EmailBackend',
     },
 }
+
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True

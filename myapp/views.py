@@ -57,6 +57,7 @@ def home_publico(request):
         'total_consultores': total_consultores,
         'proyectos_destacados': proyectos_destacados,
         'empresas_clientes': empresas_clientes,
+        'admin_usuario': request.session.get('admin_usuario'),
     })
 
 # ---------- LOGIN / LOGOUT ----------
@@ -97,7 +98,7 @@ def login_view(request):
 
 def logout_view(request):
     request.session.flush()
-    return redirect('login')
+    return redirect('home')
 
 
 # ---------- INICIO ----------

@@ -218,7 +218,15 @@
 <div class="wrap">
   <nav>
     <a class="brand" href="{% url 'home' %}">Consultora</a>
-    <a class="btn-ember" href="{% url 'login' %}">Iniciar sesión</a>
+    {% if admin_usuario %}
+      <div style="display:flex;align-items:center;gap:12px;">
+        <span style="font-size:14px;font-weight:500;color:var(--color-graphite);letter-spacing:-0.01em;">{{ admin_usuario }}</span>
+        <a class="btn-ember" href="{% url 'logout' %}">Cerrar sesión</a>
+        <a href="{% url 'inicio' %}" class="back-link">Inicio &longrightarrow;</a>
+      </div>
+    {% else %}
+      <a class="btn-ember" href="{% url 'login' %}">Iniciar sesión</a>
+    {% endif %}
   </nav>
 </div>
 
