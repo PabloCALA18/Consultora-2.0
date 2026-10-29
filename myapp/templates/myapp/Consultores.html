@@ -2,9 +2,9 @@
 {% block titulo %}Consultores{% endblock %}
 
 {% block contenido %}
-<a href="{% url 'inicio' %}" class="back-link">&larr; Volver a Inicio</a>
 <h3 class="mb-4">Consultores</h3>
 
+{% if puede_modificar_consultores %}
 <form method="post" class="row g-2 mb-4 align-items-end">
     {% csrf_token %}
     <div class="col-md-2">
@@ -40,6 +40,9 @@
         <button type="submit" class="btn btn-primary">Agregar</button>
     </div>
 </form>
+{% else %}
+<div class="alert alert-secondary">Tu rol ({{ rol_nombre }}) tiene acceso de solo lectura en esta sección.</div>
+{% endif %}
 
 <table class="table table-striped bg-white shadow-sm">
     <thead>
@@ -49,7 +52,7 @@
             <th>Sueldo</th>
             <th>Categoría</th>
             <th>Jefe</th>
-            <th></th>
+            {% if puede_modificar_consultores %}<th></th>{% endif %}
         </tr>
     </thead>
     <tbody>
@@ -60,14 +63,16 @@
             <td>${{ c.sueldo }}</td>
             <td>{{ c.categoria_nombre }}</td>
             <td>{{ c.jefe_nombre|default:"—" }}</td>
+            {% if puede_modificar_consultores %}
             <td>
                 <a href="{% url 'eliminar_consultor' c.codigo_empleado %}"
                    class="btn btn-danger btn-sm"
                    onclick="return confirm('¿Eliminar este consultor?');">Eliminar</a>
             </td>
+            {% endif %}
         </tr>
         {% empty %}
-        <tr><td colspan="6" class="text-center text-muted">No hay consultores cargados todavía.</td></tr>
+        <tr><td colspan="{% if puede_modificar_consultores %}6{% else %}5{% endif %}" class="text-center text-muted">No hay consultores cargados todavía.</td></tr>
         {% endfor %}
     </tbody>
 </table>

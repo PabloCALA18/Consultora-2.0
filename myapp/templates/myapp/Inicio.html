@@ -2,8 +2,18 @@
 {% block titulo %}Inicio{% endblock %}
 
 {% block contenido %}
-<a href="{% url 'home' %}" class="back-link">&larr; Volver a Inicio</a>
-<h3 class="mb-4">Panel general</h3>
+<h3 class="mb-1">Panel general</h3>
+<p class="text-muted mb-4">
+    Sesión como <strong>{{ admin_usuario }}</strong> ({{ rol_nombre }}).
+    {% if rol == 'administrador' %}
+        Podés modificar todo el sistema.
+    {% elif rol == 'rrhh' %}
+        Podés agregar y eliminar consultores; el resto es de solo lectura.
+    {% else %}
+        Tenés acceso de solo lectura.
+    {% endif %}
+</p>
+
 <div class="row g-3">
     <div class="col-md-4">
         <div class="card text-center shadow-sm">

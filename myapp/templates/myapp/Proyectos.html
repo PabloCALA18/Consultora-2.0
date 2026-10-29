@@ -2,9 +2,9 @@
 {% block titulo %}Proyectos{% endblock %}
 
 {% block contenido %}
-<a href="{% url 'inicio' %}" class="back-link">&larr; Volver a Inicio</a>
 <h3 class="mb-4">Proyectos</h3>
 
+{% if puede_modificar_proyectos %}
 <form method="post" class="row g-2 mb-4 align-items-end">
     {% csrf_token %}
     <div class="col-md-6">
@@ -19,13 +19,18 @@
         <button type="submit" class="btn btn-primary">Agregar</button>
     </div>
 </form>
+{% else %}
+<div class="alert alert-secondary">Tu rol ({{ rol_nombre }}) tiene acceso de solo lectura en esta sección.</div>
+{% endif %}
 
 <table class="table table-striped bg-white shadow-sm">
     <thead>
         <tr>
             <th>Descripción</th>
             <th>Coste</th>
-            <th></th>
+            <th>Vendido</th>
+            <th>Clientes</th>
+            {% if puede_modificar_proyectos %}<th></th>{% endif %}
         </tr>
     </thead>
     <tbody>
@@ -34,13 +39,23 @@
             <td>{{ p.descripcion }}</td>
             <td>${{ p.coste }}</td>
             <td>
+                <span class="badge {% if p.veces_vendido %}bg-primary{% else %}bg-secondary{% endif %}">{{ p.veces_vendido }}</span>
+            </td>
+            <td>{{ p.clientes|default:"—" }}</td>
+            {% if puede_modificar_proyectos %}
+            <td>
+                {% if p.veces_vendido == 0 %}
                 <a href="{% url 'eliminar_proyecto' p.id %}"
                    class="btn btn-danger btn-sm"
                    onclick="return confirm('¿Eliminar este proyecto?');">Eliminar</a>
+                {% else %}
+                <span class="text-muted small">Ya vendido</span>
+                {% endif %}
             </td>
+            {% endif %}
         </tr>
         {% empty %}
-        <tr><td colspan="3" class="text-center text-muted">No hay proyectos cargados todavía.</td></tr>
+        <tr><td colspan="{% if puede_modificar_proyectos %}5{% else %}4{% endif %}" class="text-center text-muted">No hay proyectos cargados todavía.</td></tr>
         {% endfor %}
     </tbody>
 </table>
