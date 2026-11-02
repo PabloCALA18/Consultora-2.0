@@ -1,66 +1,88 @@
-<!DOCTYPE html>
+{% load static estetica %}<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Consultora informática</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="{% static 'myapp/css/estilos.css' %}" rel="stylesheet">
 </head>
-<body class="bg-light">
+<body>
 
-<nav class="navbar navbar-expand-lg navbar-dark bg-dark px-3">
-    <a class="navbar-brand" href="{% url 'home' %}">Consultora</a>
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark px-3 sticky-top">
+    <a class="navbar-brand" href="{% url 'home' %}"><i class="bi bi-diagram-3-fill text-primary"></i> Consultora</a>
     <div class="navbar-nav">
         <a class="nav-link" href="#proyectos">Proyectos</a>
         <a class="nav-link" href="#clientes">Clientes</a>
+        <a class="nav-link" href="#equipo">Equipo</a>
         <a class="nav-link" href="#actividad">Actividad</a>
+        <a class="nav-link" href="#quienes-somos">Quiénes somos</a>
     </div>
     <div class="ms-auto">
         {% if admin_usuario %}
-            <a class="btn btn-light btn-sm me-2" href="{% url 'inicio' %}">Ir al panel</a>
+            <a class="btn btn-light btn-sm me-2" href="{% url 'inicio' %}"><i class="bi bi-speedometer2"></i> Ir al panel</a>
             <a class="btn btn-outline-light btn-sm" href="{% url 'logout' %}">Salir</a>
         {% else %}
-            <a class="btn btn-outline-light btn-sm" href="{% url 'login' %}">Ingresar</a>
+            <a class="btn btn-outline-light btn-sm" href="{% url 'login' %}"><i class="bi bi-box-arrow-in-right"></i> Ingresar</a>
         {% endif %}
     </div>
 </nav>
 
-<header class="bg-dark text-white text-center py-5">
-    <div class="container">
-        <h1 class="display-5 fw-bold">Consultoría informática a medida</h1>
-        <p class="lead mb-4">Desarrollamos proyectos para empresas que ya confían en nosotros.</p>
-        {% if not admin_usuario %}
-            <a href="{% url 'login' %}" class="btn btn-primary btn-lg">Acceso del personal</a>
-        {% endif %}
+<header class="hero text-white pt-5 pb-5">
+    <div class="container pb-5">
+        <div class="row align-items-center g-4">
+            <div class="col-lg-6">
+                <span class="badge text-bg-primary mb-3"><i class="bi bi-stars"></i> Consultoría informática</span>
+                <h1 class="display-5 fw-bold">Tecnología a medida para tu empresa</h1>
+                <p class="lead text-white-50 mb-4">Diseñamos y desarrollamos proyectos para empresas que ya confían en nosotros.</p>
+                <a href="#proyectos" class="btn btn-primary btn-lg me-2">Ver proyectos</a>
+                {% if not admin_usuario %}<a href="{% url 'login' %}" class="btn btn-outline-light btn-lg">Acceso del personal</a>{% endif %}
+            </div>
+            <div class="col-lg-6 text-center">
+                <img src="{% static 'myapp/img/hero.svg' %}" class="img-fluid" alt="Ilustración de un panel de proyectos">
+            </div>
+        </div>
     </div>
 </header>
 
-<div class="container my-5">
+<div class="container">
 
-    <div class="row g-3 text-center mb-5">
-        <div class="col-6 col-md-3"><div class="card shadow-sm"><div class="card-body"><p class="display-6 mb-0">{{ total_proyectos }}</p><span class="text-muted">Proyectos</span></div></div></div>
-        <div class="col-6 col-md-3"><div class="card shadow-sm"><div class="card-body"><p class="display-6 mb-0">{{ total_empresas }}</p><span class="text-muted">Empresas clientes</span></div></div></div>
-        <div class="col-6 col-md-3"><div class="card shadow-sm"><div class="card-body"><p class="display-6 mb-0">{{ total_ventas }}</p><span class="text-muted">Contrataciones</span></div></div></div>
-        <div class="col-6 col-md-3"><div class="card shadow-sm"><div class="card-body"><p class="display-6 mb-0">{{ total_consultores }}</p><span class="text-muted">Consultores</span></div></div></div>
+    <div class="row g-3 stats-flotantes mb-5">
+        <div class="col-6 col-md-3"><div class="card card-hover h-100"><div class="card-body d-flex align-items-center gap-3">
+            <span class="icono icono-lg bg-primary-subtle text-primary-emphasis"><i class="bi bi-kanban"></i></span>
+            <div><div class="fs-2 fw-bold lh-1">{{ total_proyectos }}</div><div class="text-muted small">Proyectos</div></div>
+        </div></div></div>
+        <div class="col-6 col-md-3"><div class="card card-hover h-100"><div class="card-body d-flex align-items-center gap-3">
+            <span class="icono icono-lg bg-success-subtle text-success-emphasis"><i class="bi bi-buildings"></i></span>
+            <div><div class="fs-2 fw-bold lh-1">{{ total_empresas }}</div><div class="text-muted small">Empresas clientes</div></div>
+        </div></div></div>
+        <div class="col-6 col-md-3"><div class="card card-hover h-100"><div class="card-body d-flex align-items-center gap-3">
+            <span class="icono icono-lg bg-warning-subtle text-warning-emphasis"><i class="bi bi-briefcase"></i></span>
+            <div><div class="fs-2 fw-bold lh-1">{{ total_ventas }}</div><div class="text-muted small">Contrataciones</div></div>
+        </div></div></div>
+        <div class="col-6 col-md-3"><div class="card card-hover h-100"><div class="card-body d-flex align-items-center gap-3">
+            <span class="icono icono-lg bg-info-subtle text-info-emphasis"><i class="bi bi-people"></i></span>
+            <div><div class="fs-2 fw-bold lh-1">{{ total_consultores }}</div><div class="text-muted small">Consultores</div></div>
+        </div></div></div>
     </div>
 
     <section id="proyectos" class="mb-5">
-        <h2 class="mb-3">Proyectos destacados</h2>
+        <h2 class="mb-4"><i class="bi bi-kanban text-primary"></i> Proyectos destacados</h2>
         <div class="row g-3">
             {% for p in proyectos_destacados %}
             <div class="col-md-4">
-                <div class="card h-100 shadow-sm">
+                <div class="card card-hover h-100 overflow-hidden">
+                    <div class="proyecto-banda bg-{{ p.id|color_por_id }}-subtle text-{{ p.id|color_por_id }}-emphasis"><i class="bi bi-kanban"></i></div>
                     <div class="card-body">
                         <p class="card-text">{{ p.descripcion|default:"Proyecto sin descripción"|truncatechars:140 }}</p>
                     </div>
                     <div class="card-footer bg-white d-flex justify-content-between align-items-center">
                         {% if p.veces_vendido %}
-                            <span class="badge bg-primary">Contratado {{ p.veces_vendido }} {{ p.veces_vendido|pluralize:"vez,veces" }}</span>
-                            <small class="text-muted">
-                                {% if p.primer_inicio %}Desde {{ p.primer_inicio|date:"m/Y" }}{% endif %}
-                            </small>
+                            <span class="badge text-bg-primary">Contratado {{ p.veces_vendido }} {{ p.veces_vendido|pluralize:"vez,veces" }}</span>
+                            <small class="text-muted">{% if p.primer_inicio %}Desde {{ p.primer_inicio|date:"m/Y" }}{% endif %}</small>
                         {% else %}
-                            <span class="badge bg-success">Nuevo</span>
+                            <span class="badge text-bg-success">Nuevo</span>
                         {% endif %}
                     </div>
                 </div>
@@ -72,15 +94,16 @@
     </section>
 
     <section id="clientes" class="mb-5">
-        <h2 class="mb-3">Empresas que confían en nosotros</h2>
+        <h2 class="mb-4"><i class="bi bi-buildings text-success"></i> Empresas que confían en nosotros</h2>
         <div class="row g-3">
             {% for e in empresas_clientes %}
             <div class="col-6 col-md-3">
-                <div class="card h-100 shadow-sm text-center">
+                <div class="card card-hover h-100 text-center">
                     <div class="card-body">
+                        <span class="icono icono-lg mb-3 bg-{{ e.id|color_por_id }}-subtle text-{{ e.id|color_por_id }}-emphasis"><i class="bi bi-building"></i></span>
                         <h6 class="card-title mb-1">{{ e.nombre }}</h6>
-                        <p class="small text-muted mb-2">{{ e.direccion|default:"" }}</p>
-                        <span class="badge {% if e.proyectos_contratados %}bg-primary{% else %}bg-secondary{% endif %}">
+                        <p class="small text-muted mb-2">{% if e.direccion %}<i class="bi bi-geo-alt"></i> {{ e.direccion }}{% endif %}</p>
+                        <span class="badge {% if e.proyectos_contratados %}text-bg-primary{% else %}text-bg-secondary{% endif %}">
                             {{ e.proyectos_contratados }} proyecto{{ e.proyectos_contratados|pluralize }}
                         </span>
                     </div>
@@ -92,10 +115,31 @@
         </div>
     </section>
 
+    <section id="equipo" class="mb-5">
+        <div class="card overflow-hidden">
+            <div class="row g-0 align-items-center">
+                <div class="col-md-6 p-4 p-lg-5">
+                    <h2 class="mb-3"><i class="bi bi-people text-primary"></i> Un equipo con experiencia</h2>
+                    <p class="text-muted">{{ total_consultores }} consultores trabajan en proyectos para nuestros clientes.</p>
+                    <div class="d-flex flex-wrap gap-2">
+                        {% for c in categorias_equipo %}
+                        <span class="badge rounded-pill text-bg-light border fs-6 fw-normal"><i class="bi bi-person-badge"></i> {{ c.nombre }} · {{ c.cantidad }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="col-md-6 equipo-fondo text-center p-3">
+                    <img src="{% static 'myapp/img/equipo.svg' %}" class="img-fluid" alt="Ilustración del equipo de consultores">
+                </div>
+            </div>
+        </div>
+    </section>
+
     <section id="actividad" class="mb-5">
-        <h2 class="mb-3">Actividad reciente</h2>
-        <table class="table bg-white shadow-sm align-middle">
-            <thead>
+        <h2 class="mb-4"><i class="bi bi-clock-history text-primary"></i> Actividad reciente</h2>
+        <div class="card overflow-hidden">
+        <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
                 <tr><th>Empresa</th><th>Proyecto</th><th>Inicio</th><th>Fin previsto</th><th>Estado</th></tr>
             </thead>
             <tbody>
@@ -106,16 +150,41 @@
                     <td>{{ v.fecha_inicio|date:"d/m/Y"|default:"—" }}</td>
                     <td>{{ v.fecha_fin|date:"d/m/Y"|default:"—" }}</td>
                     <td>
-                        {% if v.estado == 'En curso' %}<span class="badge bg-success">En curso</span>
-                        {% elif v.estado == 'Próximo' %}<span class="badge bg-info text-dark">Próximo</span>
-                        {% else %}<span class="badge bg-secondary">Finalizado</span>{% endif %}
+                        {% if v.estado == 'En curso' %}<span class="badge text-bg-success"><i class="bi bi-play-circle"></i> En curso</span>
+                        {% elif v.estado == 'Próximo' %}<span class="badge text-bg-info"><i class="bi bi-hourglass-split"></i> Próximo</span>
+                        {% else %}<span class="badge text-bg-secondary"><i class="bi bi-check2-circle"></i> Finalizado</span>{% endif %}
                     </td>
                 </tr>
                 {% empty %}
-                <tr><td colspan="5" class="text-center text-muted">Todavía no hay contrataciones registradas.</td></tr>
+                <tr><td colspan="5" class="text-center text-muted py-4">Todavía no hay contrataciones registradas.</td></tr>
                 {% endfor %}
             </tbody>
         </table>
+        </div>
+        </div>
+    </section>
+
+    <section id="quienes-somos" class="mb-5">
+        <div class="text-center mb-4">
+            <h2><i class="bi bi-people-fill text-primary"></i> ¿Quiénes somos?</h2>
+            <p class="text-muted mx-auto" style="max-width: 640px;">
+                Somos tres ingenieros que fundamos esta consultora para desarrollar soluciones informáticas a medida.
+                Conocé a cada uno y mirá más sobre su trabajo.
+            </p>
+        </div>
+        <div class="row g-4 justify-content-center">
+            {% for f in fundadores %}
+            <div class="col-12 col-md-4">
+                <div class="card card-hover h-100 text-center">
+                    <div class="card-body py-4">
+                        {% include 'myapp/_fundador_circulo.html' with f=f tamano='fundador-lg' %}
+                        <p class="text-muted mt-3 mb-3">{{ f.bio_corta }}</p>
+                        <a href="{% url 'fundador_detalle' f.slug %}" class="btn btn-outline-primary btn-sm">Ver más <i class="bi bi-arrow-right"></i></a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
     </section>
 </div>
 

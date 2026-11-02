@@ -1,11 +1,12 @@
 {% extends 'myapp/base.html' %}
+{% load estetica %}
 {% block titulo %}Empresas{% endblock %}
 
 {% block contenido %}
-<h3 class="mb-4">Empresas clientes</h3>
+<h3 class="mb-4"><i class="bi bi-buildings"></i> Empresas clientes</h3>
 
 {% if puede_modificar_empresas %}
-<form method="post" class="row g-2 mb-4 align-items-end">
+<form method="post" class="card card-body row g-2 mb-4 align-items-end flex-row">
     {% csrf_token %}
     <div class="col-md-3">
         <label class="form-label">Nombre</label>
@@ -24,55 +25,56 @@
         <input type="text" name="telefono" class="form-control">
     </div>
     <div class="col-md-2">
-        <button type="submit" class="btn btn-primary">Agregar</button>
+        <button type="submit" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Agregar</button>
     </div>
 </form>
 {% else %}
 <div class="alert alert-secondary">Tu rol ({{ rol_nombre }}) tiene acceso de solo lectura en esta sección.</div>
 {% endif %}
 
-<table class="table table-striped bg-white shadow-sm">
-    <thead>
+<div class="card overflow-hidden">
+<div class="table-responsive">
+<table class="table table-hover align-middle mb-0">
+    <thead class="table-light">
         <tr>
-            <th>Nombre</th>
+            <th>Empresa</th>
             <th>Dirección</th>
             <th>CIF</th>
             <th>Teléfonos</th>
-            <th>Proyectos contratados</th>
-            {% if puede_modificar_empresas %}<th></th>{% endif %}
+            <th>Proyectos</th>
+            <th></th>
         </tr>
     </thead>
     <tbody>
         {% for e in empresas %}
         <tr>
-            <td>{{ e.nombre }}</td>
+            <td>
+                <a href="{% url 'empresa_detalle' e.id %}" class="text-decoration-none d-flex align-items-center gap-2">
+                    <span class="icono bg-{{ e.id|color_por_id }}-subtle text-{{ e.id|color_por_id }}-emphasis"><i class="bi bi-building"></i></span>
+                    <strong>{{ e.nombre }}</strong>
+                </a>
+            </td>
             <td>{{ e.direccion|default:"—" }}</td>
             <td>{{ e.cif }}</td>
             <td>
-                {% for numero in e.telefonos %}
-                    {{ numero }}{% if not forloop.last %}, {% endif %}
-                {% empty %}
-                    —
-                {% endfor %}
+                {% for numero in e.telefonos %}{{ numero }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}
             </td>
-            <td>
-                <span class="badge {% if e.proyectos_contratados %}bg-primary{% else %}bg-secondary{% endif %}">{{ e.proyectos_contratados }}</span>
-            </td>
-            {% if puede_modificar_empresas %}
-            <td>
-                {% if e.proyectos_contratados == 0 %}
-                <a href="{% url 'eliminar_empresa' e.id %}"
-                   class="btn btn-danger btn-sm"
-                   onclick="return confirm('¿Eliminar esta empresa?');">Eliminar</a>
-                {% else %}
-                <span class="text-muted small">Tiene proyectos</span>
+            <td><span class="badge {% if e.proyectos_contratados %}text-bg-primary{% else %}text-bg-secondary{% endif %}">{{ e.proyectos_contratados }}</span></td>
+            <td class="text-nowrap text-end">
+                <a href="{% url 'empresa_detalle' e.id %}" class="btn btn-outline-primary btn-sm"><i class="bi bi-eye"></i> Detalle</a>
+                {% if puede_modificar_empresas %}
+                    {% if e.proyectos_contratados == 0 %}
+                    <a href="{% url 'eliminar_empresa' e.id %}" class="btn btn-outline-danger btn-sm"
+                       onclick="return confirm('¿Eliminar esta empresa?');"><i class="bi bi-trash"></i></a>
+                    {% endif %}
                 {% endif %}
             </td>
-            {% endif %}
         </tr>
         {% empty %}
-        <tr><td colspan="{% if puede_modificar_empresas %}6{% else %}5{% endif %}" class="text-center text-muted">No hay empresas cargadas todavía.</td></tr>
+        <tr><td colspan="6" class="text-center text-muted py-4">No hay empresas cargadas todavía.</td></tr>
         {% endfor %}
     </tbody>
 </table>
+</div>
+</div>
 {% endblock %}

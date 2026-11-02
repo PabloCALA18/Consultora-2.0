@@ -1,0 +1,9 @@
+<a href="{% url 'fundador_detalle' f.slug %}" class="fundador text-decoration-none text-reset d-inline-block text-center">
+    {% if f.foto %}
+        <img src="{{ f.foto }}" alt="Foto de {{ f.nombre }}" class="fundador-circulo {{ tamano }}">
+    {% else %}
+        <span class="fundador-circulo fundador-inicial {{ tamano }}">{{ f.nombre|slice:":1" }}</span>
+    {% endif %}
+    <div class="fw-semibold mt-3 fs-5">{{ f.nombre }}</div>
+    <div class="text-muted small">{{ f.titulo }}</div>
+</a>

@@ -1,11 +1,12 @@
 {% extends 'myapp/base.html' %}
+{% load estetica %}
 {% block titulo %}Proyectos{% endblock %}
 
 {% block contenido %}
-<h3 class="mb-4">Proyectos</h3>
+<h3 class="mb-4"><i class="bi bi-kanban"></i> Proyectos</h3>
 
 {% if puede_modificar_proyectos %}
-<form method="post" class="row g-2 mb-4 align-items-end">
+<form method="post" class="card card-body row g-2 mb-4 align-items-end flex-row">
     {% csrf_token %}
     <div class="col-md-6">
         <label class="form-label">Descripción</label>
@@ -16,47 +17,52 @@
         <input type="number" step="0.01" name="coste" class="form-control" required>
     </div>
     <div class="col-md-3">
-        <button type="submit" class="btn btn-primary">Agregar</button>
+        <button type="submit" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Agregar</button>
     </div>
 </form>
 {% else %}
 <div class="alert alert-secondary">Tu rol ({{ rol_nombre }}) tiene acceso de solo lectura en esta sección.</div>
 {% endif %}
 
-<table class="table table-striped bg-white shadow-sm">
-    <thead>
+<div class="card overflow-hidden">
+<div class="table-responsive">
+<table class="table table-hover align-middle mb-0">
+    <thead class="table-light">
         <tr>
-            <th>Descripción</th>
-            <th>Coste</th>
+            <th>Proyecto</th>
+            {% if puede_ver_finanzas %}<th>Coste</th>{% endif %}
             <th>Vendido</th>
             <th>Clientes</th>
-            {% if puede_modificar_proyectos %}<th></th>{% endif %}
+            <th></th>
         </tr>
     </thead>
     <tbody>
         {% for p in proyectos %}
         <tr>
-            <td>{{ p.descripcion }}</td>
-            <td>${{ p.coste }}</td>
             <td>
-                <span class="badge {% if p.veces_vendido %}bg-primary{% else %}bg-secondary{% endif %}">{{ p.veces_vendido }}</span>
+                <a href="{% url 'proyecto_detalle' p.id %}" class="text-decoration-none d-flex align-items-center gap-2">
+                    <span class="icono icono-cuadrado bg-{{ p.id|color_por_id }}-subtle text-{{ p.id|color_por_id }}-emphasis"><i class="bi bi-kanban"></i></span>
+                    {{ p.descripcion|default:"Proyecto"|truncatechars:70 }}
+                </a>
             </td>
+            {% if puede_ver_finanzas %}<td>${{ p.coste }}</td>{% endif %}
+            <td><span class="badge {% if p.veces_vendido %}text-bg-primary{% else %}text-bg-secondary{% endif %}">{{ p.veces_vendido }}</span></td>
             <td>{{ p.clientes|default:"—" }}</td>
-            {% if puede_modificar_proyectos %}
-            <td>
-                {% if p.veces_vendido == 0 %}
-                <a href="{% url 'eliminar_proyecto' p.id %}"
-                   class="btn btn-danger btn-sm"
-                   onclick="return confirm('¿Eliminar este proyecto?');">Eliminar</a>
-                {% else %}
-                <span class="text-muted small">Ya vendido</span>
+            <td class="text-nowrap text-end">
+                <a href="{% url 'proyecto_detalle' p.id %}" class="btn btn-outline-primary btn-sm"><i class="bi bi-eye"></i> Detalle</a>
+                {% if puede_modificar_proyectos %}
+                    {% if p.veces_vendido == 0 %}
+                    <a href="{% url 'eliminar_proyecto' p.id %}" class="btn btn-outline-danger btn-sm"
+                       onclick="return confirm('¿Eliminar este proyecto?');"><i class="bi bi-trash"></i></a>
+                    {% endif %}
                 {% endif %}
             </td>
-            {% endif %}
         </tr>
         {% empty %}
-        <tr><td colspan="{% if puede_modificar_proyectos %}5{% else %}4{% endif %}" class="text-center text-muted">No hay proyectos cargados todavía.</td></tr>
+        <tr><td colspan="5" class="text-center text-muted py-4">No hay proyectos cargados todavía.</td></tr>
         {% endfor %}
     </tbody>
 </table>
+</div>
+</div>
 {% endblock %}

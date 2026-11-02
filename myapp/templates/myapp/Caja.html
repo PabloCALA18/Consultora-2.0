@@ -1,0 +1,160 @@
+{% extends 'myapp/base.html' %}
+{% load estetica %}
+{% block titulo %}Caja{% endblock %}
+
+{% block contenido %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h3 class="mb-0"><i class="bi bi-cash-stack"></i> Caja</h3>
+    {% if not falta_tabla %}
+    <a href="{% url 'caja_nuevo' %}{% if filtros.empresa %}?empresa={{ filtros.empresa }}{% elif filtros.consultor %}?consultor={{ filtros.consultor }}{% endif %}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Nuevo movimiento</a>
+    {% endif %}
+</div>
+
+{% if falta_tabla %}
+<div class="alert alert-warning">
+    <strong>Todavía no existe la tabla de la caja.</strong>
+    Ejecutá el script <code>crear_caja.sql</code> en DBeaver (sobre <code>empresa_consultora</code>) y recargá esta página.
+</div>
+{% else %}
+
+<form method="get" class="card card-body mb-4">
+    <div class="row g-2 align-items-end">
+        <div class="col-6 col-md-2"><label class="form-label small mb-1">Desde</label><input type="date" name="desde" class="form-control form-control-sm" value="{{ filtros.desde|default:'' }}"></div>
+        <div class="col-6 col-md-2"><label class="form-label small mb-1">Hasta</label><input type="date" name="hasta" class="form-control form-control-sm" value="{{ filtros.hasta|default:'' }}"></div>
+        <div class="col-6 col-md-2">
+            <label class="form-label small mb-1">Empresa</label>
+            <select name="empresa" class="form-select form-select-sm">
+                <option value="">Todas</option>
+                {% for e in empresas_filtro %}<option value="{{ e.id }}" {% if e.id == filtros.empresa %}selected{% endif %}>{{ e.nombre }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-6 col-md-2">
+            <label class="form-label small mb-1">Consultor</label>
+            <select name="consultor" class="form-select form-select-sm">
+                <option value="">Todos</option>
+                {% for c in consultores_filtro %}<option value="{{ c.codigo_empleado }}" {% if c.codigo_empleado == filtros.consultor %}selected{% endif %}>{{ c.nombre }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-6 col-md-2">
+            <label class="form-label small mb-1">Categoría</label>
+            <select name="categoria" class="form-select form-select-sm">
+                <option value="">Todas</option>
+                {% for c in categorias_filtro %}<option value="{{ c.clave }}" {% if c.clave == filtros.categoria %}selected{% endif %}>{{ c.nombre }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-6 col-md-2 d-flex gap-2">
+            <button type="submit" class="btn btn-primary btn-sm flex-grow-1"><i class="bi bi-funnel"></i> Filtrar</button>
+            <a href="{% url 'caja' %}" class="btn btn-outline-secondary btn-sm">Limpiar</a>
+        </div>
+    </div>
+</form>
+
+<div class="row g-3 mb-2">
+    <div class="col-6 col-md-4 col-xl-2"><div class="card h-100"><div class="card-body"><div class="text-muted small"><i class="bi bi-safe"></i> Saldo de caja</div><div class="fs-5 fw-bold {% if resumen.saldo >= 0 %}text-success{% else %}text-danger{% endif %}">${{ resumen.saldo|floatformat:2 }}</div></div></div></div>
+    <div class="col-6 col-md-4 col-xl-2"><div class="card h-100"><div class="card-body"><div class="text-muted small"><i class="bi bi-box-arrow-in-down"></i> Ingresos</div><div class="fs-5 fw-bold text-success">${{ resumen.ingresos|floatformat:2 }}</div></div></div></div>
+    <div class="col-6 col-md-4 col-xl-2"><div class="card h-100"><div class="card-body"><div class="text-muted small"><i class="bi bi-box-arrow-up"></i> Gastos</div><div class="fs-5 fw-bold text-danger">${{ resumen.gastos|floatformat:2 }}</div></div></div></div>
+    <div class="col-6 col-md-4 col-xl-2"><div class="card h-100"><div class="card-body"><div class="text-muted small"><i class="bi bi-rocket-takeoff"></i> Inversiones</div><div class="fs-5 fw-bold">${{ resumen.inversiones|floatformat:2 }}</div></div></div></div>
+    <div class="col-6 col-md-4 col-xl-2"><div class="card h-100"><div class="card-body"><div class="text-muted small"><i class="bi bi-graph-up-arrow"></i> Ganancia</div><div class="fs-5 fw-bold {% if resumen.ganancia >= 0 %}text-success{% else %}text-danger{% endif %}">${{ resumen.ganancia|floatformat:2 }}</div></div></div></div>
+    <div class="col-6 col-md-4 col-xl-2"><div class="card h-100"><div class="card-body"><div class="text-muted small"><i class="bi bi-calendar2-check"></i> Cuotas cobradas</div><div class="fs-5 fw-bold">${{ resumen.cuotas|floatformat:2 }}</div></div></div></div>
+</div>
+<p class="text-muted small mb-4">
+    Los números respetan los filtros de arriba. <strong>Saldo</strong> = ingresos − todos los egresos.
+    <strong>Ganancia</strong> = ingresos (sin aportes de capital) − gastos (sin inversiones).
+</p>
+
+<div class="card overflow-hidden mb-5">
+<div class="table-responsive">
+<table class="table table-hover align-middle mb-0">
+    <thead class="table-light">
+        <tr><th>Fecha</th><th>Categoría</th><th>Detalle</th><th>Empresa</th><th>Consultor</th><th class="text-end">Monto</th><th></th></tr>
+    </thead>
+    <tbody>
+        {% for m in movimientos %}
+        <tr>
+            <td class="text-nowrap">{{ m.fecha|date:"d/m/Y" }}</td>
+            <td><span class="badge {% if m.tipo == 'ingreso' %}text-bg-success{% else %}text-bg-danger{% endif %}">{{ m.categoria_nombre }}</span></td>
+            <td>
+                {{ m.descripcion|default:"—" }}
+                {% if m.cuota_numero %}<span class="badge text-bg-light border">cuota {{ m.cuota_numero }}/{{ m.cuotas_total }}</span>{% endif %}
+                {% if m.proyecto %}<div class="small text-muted">{{ m.proyecto|truncatechars:50 }}</div>{% endif %}
+            </td>
+            <td>{% if m.empresa_id %}<a href="{% url 'empresa_detalle' m.empresa_id %}" class="text-decoration-none">{{ m.empresa }}</a>{% else %}—{% endif %}</td>
+            <td>{% if m.consultor_id %}<a href="{% url 'consultor_detalle' m.consultor_id %}" class="text-decoration-none">{{ m.consultor }}</a>{% else %}—{% endif %}</td>
+            <td class="text-end text-nowrap fw-semibold {% if m.tipo == 'ingreso' %}text-success{% else %}text-danger{% endif %}">{% if m.tipo == 'ingreso' %}+{% else %}−{% endif %}${{ m.monto|floatformat:2 }}</td>
+            <td class="text-nowrap text-end">
+                <a href="{% url 'caja_editar' m.id %}" class="btn btn-outline-primary btn-sm"><i class="bi bi-pencil-square"></i></a>
+                <form method="post" action="{% url 'caja_eliminar' m.id %}" class="d-inline" onsubmit="return confirm('¿Eliminar este movimiento?');">
+                    {% csrf_token %}<button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-trash"></i></button>
+                </form>
+            </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" class="text-center text-muted py-4">No hay movimientos{% if filtros %} con esos filtros{% endif %}. Registrá el primero con «Nuevo movimiento».</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+</div>
+{% if hay_mas %}<p class="text-muted small mt-n4 mb-4">Se muestran los últimos {{ limite }} movimientos; usá los filtros para ver el resto.</p>{% endif %}
+
+<h5 class="mb-3"><i class="bi bi-buildings"></i> Por empresa <small class="text-muted fw-normal">(acumulado total)</small></h5>
+<div class="card overflow-hidden mb-5">
+<div class="table-responsive">
+<table class="table table-hover align-middle mb-0">
+    <thead class="table-light">
+        <tr><th>Empresa</th><th class="text-end">Facturado</th><th class="text-end">Cobrado</th><th class="text-end">Pendiente de cobro</th><th class="text-end">Gastos asociados</th><th class="text-end">Resultado</th><th></th></tr>
+    </thead>
+    <tbody>
+        {% for e in resumen_empresas %}
+        <tr>
+            <td>
+                <a href="{% url 'empresa_detalle' e.id %}" class="text-decoration-none d-flex align-items-center gap-2">
+                    <span class="icono icono-sm bg-{{ e.id|color_por_id }}-subtle text-{{ e.id|color_por_id }}-emphasis"><i class="bi bi-building"></i></span>{{ e.nombre }}
+                </a>
+            </td>
+            <td class="text-end">${{ e.facturado|floatformat:2 }}</td>
+            <td class="text-end">${{ e.cobrado|floatformat:2 }}</td>
+            <td class="text-end {% if e.pendiente > 0 %}text-danger fw-semibold{% endif %}">${{ e.pendiente|floatformat:2 }}</td>
+            <td class="text-end">${{ e.gastos|floatformat:2 }}</td>
+            <td class="text-end fw-semibold {% if e.resultado >= 0 %}text-success{% else %}text-danger{% endif %}">${{ e.resultado|floatformat:2 }}</td>
+            <td class="text-end"><a href="{% url 'caja' %}?empresa={{ e.id }}" class="btn btn-outline-primary btn-sm">Movimientos</a></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" class="text-center text-muted py-4">Todavía no hay empresas.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+</div>
+
+<h5 class="mb-3"><i class="bi bi-people"></i> Por consultor <small class="text-muted fw-normal">(acumulado total)</small></h5>
+<div class="card overflow-hidden">
+<div class="table-responsive">
+<table class="table table-hover align-middle mb-0">
+    <thead class="table-light">
+        <tr><th>Consultor</th><th class="text-end">Sueldo pactado</th><th class="text-end">Sueldos pagados</th><th class="text-end">Ventas a su cargo</th><th class="text-end">Facturado en sus ventas</th><th></th></tr>
+    </thead>
+    <tbody>
+        {% for c in resumen_consultores %}
+        <tr>
+            <td>
+                <a href="{% url 'consultor_detalle' c.codigo_empleado %}" class="text-decoration-none d-flex align-items-center gap-2">
+                    <span class="icono icono-sm avatar bg-{{ c.codigo_empleado|color_por_id }}-subtle text-{{ c.codigo_empleado|color_por_id }}-emphasis">{{ c.nombre|iniciales }}</span>{{ c.nombre }}
+                </a>
+            </td>
+            <td class="text-end">${{ c.sueldo|floatformat:2 }}</td>
+            <td class="text-end">${{ c.pagado|floatformat:2 }}</td>
+            <td class="text-end">{{ c.ventas }}</td>
+            <td class="text-end">${{ c.facturado|floatformat:2 }}</td>
+            <td class="text-end"><a href="{% url 'caja' %}?consultor={{ c.codigo_empleado }}" class="btn btn-outline-primary btn-sm">Movimientos</a></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" class="text-center text-muted py-4">Todavía no hay consultores.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+</div>
+
+{% endif %}
+{% endblock %}

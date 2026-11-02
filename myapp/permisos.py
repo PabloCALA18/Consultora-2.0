@@ -28,6 +28,10 @@ PERMISOS_ESCRITURA = {
     'proyectos': {'administrador'},
 }
 
+# Quién puede ver datos económicos (se usa en los detalles y en el panel).
+ROLES_VEN_SUELDOS = {'administrador', 'rrhh'}   # sueldos de los consultores
+ROLES_VEN_FINANZAS = {'administrador'}          # precios de venta, costes y márgenes
+
 # Usuarios de prueba (SOLO mientras USAR_BASE_DE_DATOS sea False).
 USUARIOS_DEMO = {
     'admin':    {'id': 1, 'contrasena': 'admin123',    'rol': 'administrador'},
@@ -50,4 +54,6 @@ def contexto_usuario(request):
         'puede_modificar_consultores': puede_modificar(rol, 'consultores'),
         'puede_modificar_empresas': puede_modificar(rol, 'empresas'),
         'puede_modificar_proyectos': puede_modificar(rol, 'proyectos'),
+        'puede_ver_sueldos': rol in ROLES_VEN_SUELDOS,
+        'puede_ver_finanzas': rol in ROLES_VEN_FINANZAS,
     }

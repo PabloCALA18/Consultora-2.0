@@ -1,0 +1,51 @@
+{% load estetica %}
+<div class="table-responsive">
+<table class="table table-hover bg-white align-middle mb-0">
+    <thead class="table-light">
+        <tr>
+            {% if col_empresa %}<th>Empresa</th>{% endif %}
+            {% if col_proyecto %}<th>Proyecto</th>{% endif %}
+            {% if col_consultor %}<th>Responsable</th>{% endif %}
+            <th>Inicio</th>
+            <th>Fin previsto</th>
+            {% if puede_ver_finanzas %}<th class="text-end">Precio</th>{% endif %}
+            <th>Estado</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for v in ventas %}
+        <tr>
+            {% if col_empresa %}
+            <td>
+                <a href="{% url 'empresa_detalle' v.empresa_id %}" class="text-decoration-none d-flex align-items-center gap-2">
+                    <span class="icono icono-sm bg-{{ v.empresa_id|color_por_id }}-subtle text-{{ v.empresa_id|color_por_id }}-emphasis"><i class="bi bi-building"></i></span>
+                    {{ v.empresa }}
+                </a>
+            </td>
+            {% endif %}
+            {% if col_proyecto %}
+            <td><a href="{% url 'proyecto_detalle' v.proyecto_id %}" class="text-decoration-none">{{ v.proyecto|default:"Proyecto"|truncatechars:60 }}</a></td>
+            {% endif %}
+            {% if col_consultor %}
+            <td>
+                <a href="{% url 'consultor_detalle' v.consultor_id %}" class="text-decoration-none d-flex align-items-center gap-2">
+                    <span class="icono icono-sm avatar bg-{{ v.consultor_id|color_por_id }}-subtle text-{{ v.consultor_id|color_por_id }}-emphasis">{{ v.consultor|iniciales }}</span>
+                    {{ v.consultor }}
+                </a>
+            </td>
+            {% endif %}
+            <td>{{ v.fecha_inicio|date:"d/m/Y"|default:"—" }}</td>
+            <td>{{ v.fecha_fin|date:"d/m/Y"|default:"—" }}</td>
+            {% if puede_ver_finanzas %}<td class="text-end">${{ v.precio|floatformat:2 }}</td>{% endif %}
+            <td>
+                {% if v.estado == 'En curso' %}<span class="badge text-bg-success"><i class="bi bi-play-circle"></i> En curso</span>
+                {% elif v.estado == 'Próximo' %}<span class="badge text-bg-info"><i class="bi bi-hourglass-split"></i> Próximo</span>
+                {% else %}<span class="badge text-bg-secondary"><i class="bi bi-check2-circle"></i> Finalizado</span>{% endif %}
+            </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" class="text-center text-muted py-4">Todavía no hay contrataciones registradas.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>

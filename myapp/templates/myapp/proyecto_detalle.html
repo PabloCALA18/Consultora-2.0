@@ -1,0 +1,37 @@
+{% extends 'myapp/base.html' %}
+{% load estetica %}
+{% block titulo %}Proyecto{% endblock %}
+
+{% block contenido %}
+<div class="d-flex justify-content-between align-items-center">
+    <a href="{% url 'proyectos' %}" class="text-decoration-none small"><i class="bi bi-arrow-left"></i> Volver a proyectos</a>
+    {% if puede_modificar_proyectos %}<a href="{% url 'proyecto_editar' proyecto.id %}" class="btn btn-primary btn-sm"><i class="bi bi-pencil-square"></i> Editar</a>{% endif %}
+</div>
+
+<div class="d-flex align-items-start gap-3 mt-3 mb-4">
+    <span class="icono icono-lg icono-cuadrado bg-{{ proyecto.id|color_por_id }}-subtle text-{{ proyecto.id|color_por_id }}-emphasis"><i class="bi bi-kanban"></i></span>
+    <div>
+        <h3 class="mb-1">Proyecto #{{ proyecto.id }}</h3>
+        <span class="badge text-bg-primary"><i class="bi bi-briefcase"></i> Contratado {{ veces_vendido }} vez{{ veces_vendido|pluralize:"es" }}</span>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header bg-white fw-semibold"><i class="bi bi-card-text"></i> Objetivos del proyecto</div>
+    <div class="card-body">{{ proyecto.descripcion|default:"Este proyecto todavía no tiene descripción."|linebreaksbr }}</div>
+</div>
+
+{% if puede_ver_finanzas %}
+<div class="row g-3 mb-4">
+    <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small"><i class="bi bi-wallet2"></i> Coste del proyecto</div><div class="fs-4 fw-bold">${{ proyecto.coste|floatformat:2 }}</div></div></div></div>
+    <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small"><i class="bi bi-cash-coin"></i> Ingresos totales</div><div class="fs-4 fw-bold">${{ ingresos|floatformat:2 }}</div></div></div></div>
+    <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small"><i class="bi bi-receipt"></i> Coste acumulado</div><div class="fs-4 fw-bold">${{ costes|floatformat:2 }}</div></div></div></div>
+    <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small"><i class="bi bi-graph-up-arrow"></i> Margen estimado</div><div class="fs-4 fw-bold {% if margen >= 0 %}text-success{% else %}text-danger{% endif %}">${{ margen|floatformat:2 }}</div></div></div></div>
+</div>
+{% endif %}
+
+<h5 class="mb-3"><i class="bi bi-buildings"></i> Empresas que lo contrataron</h5>
+<div class="card overflow-hidden">
+    {% include 'myapp/_ventas_tabla.html' with col_empresa=True col_proyecto=False col_consultor=True %}
+</div>
+{% endblock %}
