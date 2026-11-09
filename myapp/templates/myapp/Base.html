@@ -12,17 +12,14 @@
 
 {% if admin_usuario %}
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark px-3">
-    <a class="navbar-brand" href="{% url 'inicio' %}"><img src="{% static 'myapp/img/icon.png' %}" alt="Consultora" width="28" height="28" class="me-2 align-text-top">Consultora</a>
+    <a class="navbar-brand" href="{% url 'inicio' %}"><i class="bi bi-diagram-3-fill text-primary"></i> Consultora</a>
     <div class="navbar-nav">
         <a class="nav-link {% if request.resolver_match.url_name == 'inicio' %}active{% endif %}" href="{% url 'inicio' %}"><i class="bi bi-speedometer2"></i> Inicio</a>
         <a class="nav-link {% if request.resolver_match.url_name == 'consultores' or request.resolver_match.url_name == 'consultor_detalle' %}active{% endif %}" href="{% url 'consultores' %}"><i class="bi bi-people"></i> Consultores</a>
         <a class="nav-link {% if request.resolver_match.url_name == 'empresas' or request.resolver_match.url_name == 'empresa_detalle' %}active{% endif %}" href="{% url 'empresas' %}"><i class="bi bi-buildings"></i> Empresas</a>
         <a class="nav-link {% if request.resolver_match.url_name == 'proyectos' or request.resolver_match.url_name == 'proyecto_detalle' %}active{% endif %}" href="{% url 'proyectos' %}"><i class="bi bi-kanban"></i> Proyectos</a>
-
-        {% if ve_finanzas %}
-        <a class="nav-link {% if request.resolver_match.url_name == 'caja' or request.resolver_match.url_name == 'caja_nuevo' or request.resolver_match.url_name == 'caja_editar' %}active{% endif %}" href="{% url 'caja' %}"><i class="bi bi-cash-stack"></i> Caja</a>
-        {% endif %}
-
+        {% if puede_ver_caja %}<a class="nav-link {% if 'caja' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'caja' %}"><i class="bi bi-cash-stack"></i> Caja</a>{% endif %}
+        {% if puede_gestionar_usuarios %}<a class="nav-link {% if 'usuario' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'usuarios' %}"><i class="bi bi-person-gear"></i> Usuarios</a>{% endif %}
         <a class="nav-link" href="{% url 'home' %}"><i class="bi bi-globe2"></i> Sitio público</a>
     </div>
     <div class="ms-auto d-flex align-items-center">

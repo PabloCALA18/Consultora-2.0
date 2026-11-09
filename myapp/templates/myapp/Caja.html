@@ -5,7 +5,7 @@
 {% block contenido %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h3 class="mb-0"><i class="bi bi-cash-stack"></i> Caja</h3>
-    {% if not falta_tabla %}
+    {% if not falta_tabla and puede_modificar_caja %}
     <a href="{% url 'caja_nuevo' %}{% if filtros.empresa %}?empresa={{ filtros.empresa }}{% elif filtros.consultor %}?consultor={{ filtros.consultor }}{% endif %}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Nuevo movimiento</a>
     {% endif %}
 </div>
@@ -82,14 +82,16 @@
             <td>{% if m.consultor_id %}<a href="{% url 'consultor_detalle' m.consultor_id %}" class="text-decoration-none">{{ m.consultor }}</a>{% else %}—{% endif %}</td>
             <td class="text-end text-nowrap fw-semibold {% if m.tipo == 'ingreso' %}text-success{% else %}text-danger{% endif %}">{% if m.tipo == 'ingreso' %}+{% else %}−{% endif %}${{ m.monto|floatformat:2 }}</td>
             <td class="text-nowrap text-end">
+                {% if puede_modificar_caja %}
                 <a href="{% url 'caja_editar' m.id %}" class="btn btn-outline-primary btn-sm"><i class="bi bi-pencil-square"></i></a>
                 <form method="post" action="{% url 'caja_eliminar' m.id %}" class="d-inline" onsubmit="return confirm('¿Eliminar este movimiento?');">
                     {% csrf_token %}<button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-trash"></i></button>
                 </form>
+                {% endif %}
             </td>
         </tr>
         {% empty %}
-        <tr><td colspan="7" class="text-center text-muted py-4">No hay movimientos{% if filtros %} con esos filtros{% endif %}. Registrá el primero con «Nuevo movimiento».</td></tr>
+        <tr><td colspan="7" class="text-center text-muted py-4">No hay movimientos{% if filtros %} con esos filtros{% endif %}. {% if puede_modificar_caja %}Registrá el primero con «Nuevo movimiento».{% endif %}</td></tr>
         {% endfor %}
     </tbody>
 </table>

@@ -5,7 +5,10 @@
 {% block contenido %}
 <div class="d-flex justify-content-between align-items-center">
     <a href="{% url 'empresas' %}" class="text-decoration-none small"><i class="bi bi-arrow-left"></i> Volver a empresas</a>
-    {% if puede_modificar_empresas %}<a href="{% url 'empresa_editar' empresa.id %}" class="btn btn-primary btn-sm"><i class="bi bi-pencil-square"></i> Editar</a>{% endif %}
+    <div class="d-flex gap-2">
+        {% if puede_ver_caja %}<a href="{% url 'caja' %}?empresa={{ empresa.id }}" class="btn btn-outline-success btn-sm"><i class="bi bi-cash-stack"></i> Ver caja</a>{% endif %}
+        {% if puede_modificar_empresas %}<a href="{% url 'empresa_editar' empresa.id %}" class="btn btn-primary btn-sm"><i class="bi bi-pencil-square"></i> Editar</a>{% endif %}
+    </div>
 </div>
 
 <div class="d-flex align-items-center gap-3 mt-3 mb-4">

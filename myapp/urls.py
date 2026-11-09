@@ -5,6 +5,7 @@ urlpatterns = [
     path('', views.home_publico, name='home'),
     path('equipo/<slug:slug>/', views.fundador_detalle, name='fundador_detalle'),
     path('login/', views.login_view, name='login'),
+    path('registro/', views.registro_view, name='registro'),
     path('logout/', views.logout_view, name='logout'),
     path('inicio/', views.inicio, name='inicio'),
 
@@ -23,10 +24,12 @@ urlpatterns = [
     path('proyectos/<int:pk>/editar/', views.proyecto_editar, name='proyecto_editar'),
     path('proyectos/eliminar/<int:pk>/', views.eliminar_proyecto, name='eliminar_proyecto'),
 
-    path('debug-admins/', views.ver_admins, name='ver_admins'),  # SOLO DEBUG, borrar después
-
     path('caja/', views.caja, name='caja'),
     path('caja/nuevo/', views.caja_nuevo, name='caja_nuevo'),
     path('caja/<int:pk>/editar/', views.caja_editar, name='caja_editar'),
     path('caja/<int:pk>/eliminar/', views.caja_eliminar, name='caja_eliminar'),
+
+    path('usuarios/', views.usuarios, name='usuarios'),
+    path('usuarios/<int:pk>/editar/', views.usuario_editar, name='usuario_editar'),
+    path('usuarios/<int:pk>/eliminar/', views.usuario_eliminar, name='usuario_eliminar'),
 ]

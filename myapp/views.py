@@ -1,23 +1,27 @@
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from functools import wraps
 
 from django.contrib import messages
-from django.contrib.auth.hashers import check_password
+from django.contrib.auth.hashers import check_password, make_password
 from django.contrib.staticfiles import finders
 from django.db import IntegrityError, connection, transaction
+from django.db.utils import ProgrammingError
 from django.http import Http404
 from django.shortcuts import redirect, render
 from django.templatetags.static import static
 
 from .fundadores import FUNDADORES
 from .permisos import (
+    PERMISOS,
+    REGISTRO_REQUIERE_APROBACION,
     ROLES,
-    ROLES_VEN_FINANZAS,
-    USAR_BASE_DE_DATOS,
-    USUARIOS_DEMO,
     contexto_usuario,
-    puede_modificar,
+    permisos_efectivos,
+    tiene_permiso,
+    usuario_actual,
+    validar_alta,
+    validar_clave,
 )
 
 
@@ -35,23 +39,32 @@ def renderizar(request, plantilla, datos=None):
     para que los templates sepan qué botones mostrar.
     """
     contexto = contexto_usuario(request)
-    contexto['ve_finanzas'] = request.session.get('rol') in ROLES_VEN_FINANZAS  
     contexto.update(datos or {})
     return render(request, plantilla, contexto)
 
 
-def _sesion_valida(request):
-    return 'admin_id' in request.session and 'rol' in request.session
-
-
 def login_requerido(vista):
-    """Reemplazo casero de @login_required: mira la sesión, no request.user."""
+    """Exige un usuario logueado (leído de la base). Si la cuenta se desactivó o borró, cierra la sesión."""
     @wraps(vista)
     def envoltorio(request, *args, **kwargs):
-        if not _sesion_valida(request):
+        if usuario_actual(request) is None:
+            request.session.flush()
             return redirect('login')
         return vista(request, *args, **kwargs)
     return envoltorio
+
+
+def requiere(permiso, volver_a='inicio'):
+    """Deja pasar solo a quien tenga `permiso` (ver permisos.py). Si no, vuelve a `volver_a`."""
+    def decorador(vista):
+        @wraps(vista)
+        def envoltorio(request, *args, **kwargs):
+            if not tiene_permiso(request, permiso):
+                messages.error(request, 'Tu usuario no tiene permiso para esto.')
+                return redirect(volver_a)
+            return vista(request, *args, **kwargs)
+        return envoltorio
+    return decorador
 
 
 def permiso_requerido(seccion, solo_post=False):
@@ -65,8 +78,8 @@ def permiso_requerido(seccion, solo_post=False):
         @wraps(vista)
         def envoltorio(request, *args, **kwargs):
             es_escritura = (request.method == 'POST') if solo_post else True
-            if es_escritura and not puede_modificar(request.session.get('rol'), seccion):
-                messages.error(request, 'Tu rol no tiene permiso para realizar esta acción.')
+            if es_escritura and not tiene_permiso(request, f'{seccion}.modificar'):
+                messages.error(request, 'Tu usuario no tiene permiso para realizar esta acción.')
                 return redirect(seccion)
             return vista(request, *args, **kwargs)
         return envoltorio
@@ -201,56 +214,86 @@ def fundador_detalle(request, slug):
     })
 
 
-# ---------- LOGIN / LOGOUT ----------
+# ---------- LOGIN / REGISTRO / LOGOUT (usuarios guardados en la base) ----------
 
-def autenticar(usuario, contrasena):
-    """
-    Devuelve {'id', 'usuario', 'rol'} si las credenciales son válidas, o None.
-    Es el ÚNICO lugar que cambia al conectar el login con la base de datos
-    (ver instrucciones en permisos.py).
-    """
-    if not USAR_BASE_DE_DATOS:
-        datos = USUARIOS_DEMO.get(usuario)
-        if datos and datos['contrasena'] == contrasena:
-            return {'id': datos['id'], 'usuario': usuario, 'rol': datos['rol']}
-        return None
-
-    with connection.cursor() as cursor:
-        cursor.execute(
-            "SELECT id, usuario, contrasena, rol FROM administrador WHERE usuario = %s",
-            [usuario],
-        )
-        filas = dictfetchall(cursor)
-
-    if filas and check_password(contrasena, filas[0]['contrasena']):
-        return {
-            'id': filas[0]['id'],
-            'usuario': filas[0]['usuario'],
-            'rol': filas[0]['rol'],
-        }
-    return None
+def _tabla_usuarios_faltante(error):
+    return bool(error.args) and error.args[0] == 1146       # "la tabla no existe"
 
 
 def login_view(request):
-    if _sesion_valida(request):
+    if usuario_actual(request):
         return redirect('inicio')
 
     if request.method == 'POST':
-        persona = autenticar(request.POST.get('username'), request.POST.get('password'))
-        if persona:
-            request.session.cycle_key()
-            request.session['admin_id'] = persona['id']
-            request.session['admin_usuario'] = persona['usuario']
-            request.session['rol'] = persona['rol']
-            return redirect('inicio')
-        messages.error(request, 'Usuario o contraseña incorrectos.')
+        usuario = request.POST.get('username', '').strip()
+        clave = request.POST.get('password', '')
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT id, contrasena, activo FROM usuarios WHERE usuario = %s", [usuario]
+                )
+                fila = cursor.fetchone()
+        except ProgrammingError as error:
+            if not _tabla_usuarios_faltante(error):
+                raise
+            messages.error(request, 'Falta crear la tabla de usuarios: ejecutá crear_usuarios.sql en DBeaver.')
+            return renderizar(request, 'myapp/login.html')
 
-    return renderizar(request, 'myapp/login.html', {
-        'modo_demo': not USAR_BASE_DE_DATOS,
-        'usuarios_demo': [
-            {'usuario': u, 'contrasena': d['contrasena'], 'rol_nombre': ROLES[d['rol']]}
-            for u, d in USUARIOS_DEMO.items()
-        ],
+        if fila and check_password(clave, fila[1]):
+            if not fila[2]:
+                messages.error(request, 'Tu cuenta está pendiente de aprobación o fue desactivada.')
+            else:
+                request.session.cycle_key()
+                request.session['usuario_id'] = fila[0]
+                return redirect('inicio')
+        else:
+            messages.error(request, 'Usuario o contraseña incorrectos.')
+
+    return renderizar(request, 'myapp/login.html')
+
+
+def registro_view(request):
+    """Cualquiera puede crear una cuenta; siempre queda con el rol Operario (solo lectura)."""
+    if usuario_actual(request):
+        return redirect('inicio')
+
+    usuario = ''
+    if request.method == 'POST':
+        usuario = request.POST.get('usuario', '').strip()
+        errores = validar_alta(usuario, request.POST.get('contrasena', ''), request.POST.get('repetir', ''))
+
+        if not errores:
+            activo = 0 if REGISTRO_REQUIERE_APROBACION else 1
+            try:
+                with connection.cursor() as cursor:
+                    # El rol va fijo en el SQL: nunca se toma de lo que manda el formulario.
+                    cursor.execute(
+                        "INSERT INTO usuarios (usuario, contrasena, rol, activo) "
+                        "VALUES (%s, %s, 'operario', %s)",
+                        [usuario, make_password(request.POST.get('contrasena')), activo],
+                    )
+                    nuevo_id = cursor.lastrowid
+            except IntegrityError:
+                errores.append('Ese nombre de usuario ya está en uso.')
+            except ProgrammingError as error:
+                if not _tabla_usuarios_faltante(error):
+                    raise
+                errores.append('Falta crear la tabla de usuarios: ejecutá crear_usuarios.sql en DBeaver.')
+            else:
+                if REGISTRO_REQUIERE_APROBACION:
+                    messages.success(request, 'Cuenta creada. Un administrador tiene que aprobarla antes de que puedas ingresar.')
+                    return redirect('login')
+                request.session.cycle_key()
+                request.session['usuario_id'] = nuevo_id
+                messages.success(request, '¡Cuenta creada! Ya podés ver el sistema.')
+                return redirect('inicio')
+
+        for e in errores:
+            messages.error(request, e)
+
+    return renderizar(request, 'myapp/registro.html', {
+        'usuario_escrito': usuario,
+        'requiere_aprobacion': REGISTRO_REQUIERE_APROBACION,
     })
 
 
@@ -362,7 +405,7 @@ def inicio(request):
     }
 
     # Los números de dinero solo se calculan y envían si el rol puede verlos.
-    if request.session.get('rol') in ROLES_VEN_FINANZAS:
+    if tiene_permiso(request, 'finanzas.ver'):
         ingresos = sum((v['precio'] or 0) for v in ventas)
         costes = sum((v['coste'] or 0) for v in ventas)
         datos.update(ingresos=ingresos, costes=costes, margen=ingresos - costes)
@@ -429,7 +472,7 @@ def eliminar_consultor(request, pk):
     except IntegrityError:
         messages.error(
             request,
-            'No se puede eliminar: el consultor tiene ventas a cargo o personas que dependen de él.',
+            'No se puede eliminar: el consultor tiene ventas a cargo, personas que dependen de él o movimientos en la caja.',
         )
     return redirect('consultores')
 
@@ -491,7 +534,7 @@ def eliminar_empresa(request, pk):
                 cursor.execute("DELETE FROM empresa_cliente WHERE id = %s", [pk])
         messages.success(request, 'Empresa eliminada.')
     except IntegrityError:
-        messages.error(request, 'No se puede eliminar: la empresa tiene proyectos contratados.')
+        messages.error(request, 'No se puede eliminar: la empresa tiene proyectos contratados o movimientos en la caja.')
     return redirect('empresas')
 
 
@@ -599,7 +642,7 @@ def empresa_detalle(request, pk):
         ventas = _ventas(cursor, 'WHERE v.empresa_id = %s', [pk])
 
     datos = {'empresa': empresa, 'telefonos': telefonos, 'ventas': ventas}
-    if request.session.get('rol') in ROLES_VEN_FINANZAS:
+    if tiene_permiso(request, 'finanzas.ver'):
         datos['total_contratado'] = sum((v['precio'] or 0) for v in ventas)
     return renderizar(request, 'myapp/empresa_detalle.html', datos)
 
@@ -613,7 +656,7 @@ def proyecto_detalle(request, pk):
         ventas = _ventas(cursor, 'WHERE v.proyecto_id = %s', [pk])
 
     datos = {'proyecto': proyecto, 'ventas': ventas, 'veces_vendido': len(ventas)}
-    if request.session.get('rol') in ROLES_VEN_FINANZAS:
+    if tiene_permiso(request, 'finanzas.ver'):
         ingresos = sum((v['precio'] or 0) for v in ventas)
         costes = (proyecto['coste'] or 0) * len(ventas)
         datos.update(ingresos=ingresos, costes=costes, margen=ingresos - costes)
@@ -632,13 +675,13 @@ def _entero(valor):
         return None
 
 
-def _decimal(valor):
+def _decimal(valor, maximo=LIMITE_DINERO):
     """Devuelve un Decimal entre 0 y LIMITE_DINERO con 2 decimales, o None si no sirve."""
     try:
         numero = Decimal(str(valor).strip().replace(',', '.'))
     except (InvalidOperation, ValueError):
         return None
-    if not numero.is_finite() or numero < 0 or numero > LIMITE_DINERO:
+    if not numero.is_finite() or numero < 0 or numero > maximo:
         return None
     return numero.quantize(Decimal('0.01'))
 
@@ -821,370 +864,525 @@ def proyecto_editar(request, pk):
 
     return renderizar(request, 'myapp/proyecto_editar.html', {'proyecto': proyecto})
 
-# ---------- CAJA (ingresos y egresos de la consultora) ----------
 
-# clave: (nombre que se ve, tipo). El orden es el de los desplegables.
+# ---------- CAJA (permisos caja.ver y caja.modificar) ----------
+
+# Cada categoría pertenece a un tipo. El tipo NO lo elige la persona: sale de acá.
 CATEGORIAS_CAJA = {
-    'cobro_proyecto': ('Cobro de proyecto', 'ingreso'),
-    'cuota':          ('Cobro de cuota', 'ingreso'),
-    'aporte_capital': ('Aporte de capital', 'ingreso'),
-    'otro_ingreso':   ('Otro ingreso', 'ingreso'),
-    'sueldo':         ('Pago de sueldo', 'egreso'),
-    'inversion':      ('Inversión', 'egreso'),
-    'alquiler':       ('Alquiler y servicios', 'egreso'),
-    'impuestos':      ('Impuestos', 'egreso'),
-    'otro_gasto':     ('Otro gasto', 'egreso'),
+    'cobro_proyecto': {'nombre': 'Cobro de proyecto', 'tipo': 'ingreso'},
+    'cuota':          {'nombre': 'Cobro de cuota',    'tipo': 'ingreso'},
+    'otro_ingreso':   {'nombre': 'Otro ingreso',      'tipo': 'ingreso'},
+    'aporte':         {'nombre': 'Aporte de capital', 'tipo': 'ingreso'},
+    'sueldo':         {'nombre': 'Pago de sueldo',    'tipo': 'egreso'},
+    'gasto':          {'nombre': 'Gasto operativo',   'tipo': 'egreso'},
+    'impuesto':       {'nombre': 'Impuestos',         'tipo': 'egreso'},
+    'inversion':      {'nombre': 'Inversión',         'tipo': 'egreso'},
+    'otro_egreso':    {'nombre': 'Otro egreso',       'tipo': 'egreso'},
 }
-LIMITE_CAJA = 200   # cuántos movimientos se listan como máximo
-
-
-def _categorias_caja(tipo=None):
-    return [
-        {'clave': clave, 'nombre': nombre}
-        for clave, (nombre, t) in CATEGORIAS_CAJA.items()
-        if tipo is None or t == tipo
-    ]
+TIPOS_CAJA = ('ingreso', 'egreso')
+LIMITE_CAJA = Decimal('999999999999.99')   # lo que entra en DECIMAL(14,2)
+MAX_MOVIMIENTOS_EN_PANTALLA = 300
 
 
 def _fecha(texto):
-    """'2026-11-01' -> date, o None si no sirve."""
     try:
-        return date.fromisoformat(texto)
+        return datetime.strptime(texto, '%Y-%m-%d').date()
     except (TypeError, ValueError):
         return None
 
 
-def finanzas_requerido(vista):
-    """Solo deja pasar a los roles que pueden ver las finanzas."""
-    @wraps(vista)
-    def envoltorio(request, *args, **kwargs):
-        if request.session.get('rol') not in ROLES_VEN_FINANZAS:
-            messages.error(request, 'Tu rol no tiene acceso a la caja.')
-            return redirect('inicio')
-        return vista(request, *args, **kwargs)
-    return envoltorio
-
-
-@login_requerido
-@finanzas_requerido
-def caja(request):
-    if 'caja' not in connection.introspection.table_names():
-        return renderizar(request, 'myapp/caja.html', {'falta_tabla': True})
-
-    # --- filtros (solo se guardan los que la persona completó) ---
-    filtros, condiciones, parametros = {}, [], []
+def _filtros_caja(request):
+    """Arma el WHERE con los filtros de la URL (?desde=...&empresa=...). Valores siempre parametrizados."""
+    condiciones, parametros, activos = [], [], {}
 
     desde = _fecha(request.GET.get('desde'))
     if desde:
-        filtros['desde'] = desde.isoformat()
         condiciones.append('m.fecha >= %s')
         parametros.append(desde)
+        activos['desde'] = desde.isoformat()
 
     hasta = _fecha(request.GET.get('hasta'))
     if hasta:
-        filtros['hasta'] = hasta.isoformat()
         condiciones.append('m.fecha <= %s')
         parametros.append(hasta)
+        activos['hasta'] = hasta.isoformat()
 
     empresa = _entero(request.GET.get('empresa'))
     if empresa is not None:
-        filtros['empresa'] = empresa
         condiciones.append('m.empresa_id = %s')
         parametros.append(empresa)
+        activos['empresa'] = empresa
 
     consultor = _entero(request.GET.get('consultor'))
     if consultor is not None:
-        filtros['consultor'] = consultor
         condiciones.append('m.consultor_id = %s')
         parametros.append(consultor)
+        activos['consultor'] = consultor
 
     categoria = request.GET.get('categoria')
     if categoria in CATEGORIAS_CAJA:
-        filtros['categoria'] = categoria
         condiciones.append('m.categoria = %s')
         parametros.append(categoria)
+        activos['categoria'] = categoria
 
-    donde = ('WHERE ' + ' AND '.join(condiciones)) if condiciones else ''
+    tipo = request.GET.get('tipo')
+    if tipo in TIPOS_CAJA:
+        condiciones.append('m.tipo = %s')
+        parametros.append(tipo)
+        activos['tipo'] = tipo
 
-    with connection.cursor() as cursor:
-        # --- lista de movimientos ---
-        cursor.execute(
-            f"""
-            SELECT m.id, m.fecha, m.categoria, m.tipo, m.monto, m.descripcion,
-                   m.cuota_numero, m.cuotas_total,
-                   e.id AS empresa_id, e.nombre AS empresa,
-                   c.codigo_empleado AS consultor_id, c.nombre AS consultor,
-                   p.descripcion AS proyecto
-            FROM caja m
-            LEFT JOIN empresa_cliente e ON m.empresa_id = e.id
-            LEFT JOIN consultor c ON m.consultor_id = c.codigo_empleado
-            LEFT JOIN venta v ON m.venta_id = v.id
-            LEFT JOIN proyecto p ON v.proyecto_id = p.id
-            {donde}
-            ORDER BY m.fecha DESC, m.id DESC
-            LIMIT %s
-            """,
-            parametros + [LIMITE_CAJA + 1],
-        )
-        movimientos = dictfetchall(cursor)
+    where = ('WHERE ' + ' AND '.join(condiciones)) if condiciones else ''
+    return where, parametros, activos
 
-        # --- totales (respetan los filtros, sin límite) ---
-        cursor.execute(
-            f"""
-            SELECT m.categoria, m.tipo, SUM(m.monto) AS total
-            FROM caja m
-            {donde}
-            GROUP BY m.categoria, m.tipo
-            """,
-            parametros,
-        )
-        totales = dictfetchall(cursor)
 
-        # --- resumen por empresa (acumulado, sin filtros) ---
-        cursor.execute(
-            """
-            SELECT e.id, e.nombre,
-                   (SELECT COALESCE(SUM(v.precio), 0) FROM venta v
-                     WHERE v.empresa_id = e.id) AS facturado,
-                   (SELECT COALESCE(SUM(m.monto), 0) FROM caja m
-                     WHERE m.empresa_id = e.id
-                       AND m.categoria IN ('cobro_proyecto', 'cuota')) AS cobrado,
-                   (SELECT COALESCE(SUM(m.monto), 0) FROM caja m
-                     WHERE m.empresa_id = e.id AND m.tipo = 'egreso') AS gastos
-            FROM empresa_cliente e
-            ORDER BY e.nombre
-            """
-        )
-        resumen_empresas = dictfetchall(cursor)
+def _lista_categorias(tipo=None):
+    return [
+        {'clave': clave, 'nombre': datos['nombre']}
+        for clave, datos in CATEGORIAS_CAJA.items()
+        if tipo is None or datos['tipo'] == tipo
+    ]
 
-        # --- resumen por consultor (acumulado, sin filtros) ---
-        cursor.execute(
-            """
-            SELECT c.codigo_empleado, c.nombre, c.sueldo,
-                   (SELECT COALESCE(SUM(m.monto), 0) FROM caja m
-                     WHERE m.consultor_id = c.codigo_empleado
-                       AND m.categoria = 'sueldo') AS pagado,
-                   (SELECT COUNT(*) FROM venta v
-                     WHERE v.consultor_id = c.codigo_empleado) AS ventas,
-                   (SELECT COALESCE(SUM(v.precio), 0) FROM venta v
-                     WHERE v.consultor_id = c.codigo_empleado) AS facturado
-            FROM consultor c
-            ORDER BY c.nombre
-            """
-        )
-        resumen_consultores = dictfetchall(cursor)
 
-        # --- opciones de los filtros ---
-        cursor.execute("SELECT id, nombre FROM empresa_cliente ORDER BY nombre")
-        empresas_filtro = dictfetchall(cursor)
-        cursor.execute("SELECT codigo_empleado, nombre FROM consultor ORDER BY nombre")
-        consultores_filtro = dictfetchall(cursor)
+@login_requerido
+@requiere('caja.ver')
+def caja(request):
+    where, parametros, activos = _filtros_caja(request)
 
-    # Tarjetas de arriba
-    cero = Decimal('0')
-    ingresos = sum((t['total'] for t in totales if t['tipo'] == 'ingreso'), cero)
-    egresos = sum((t['total'] for t in totales if t['tipo'] == 'egreso'), cero)
-    por_categoria = {t['categoria']: t['total'] for t in totales}
-    inversiones = por_categoria.get('inversion', cero)
-    aportes = por_categoria.get('aporte_capital', cero)
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"""
+                SELECT COUNT(*) AS cantidad,
+                       COALESCE(SUM(CASE WHEN m.tipo = 'ingreso' THEN m.monto END), 0) AS ingresos,
+                       COALESCE(SUM(CASE WHEN m.tipo = 'egreso' THEN m.monto END), 0) AS egresos,
+                       COALESCE(SUM(CASE WHEN m.categoria = 'aporte' THEN m.monto END), 0) AS aportes,
+                       COALESCE(SUM(CASE WHEN m.categoria = 'inversion' THEN m.monto END), 0) AS inversiones,
+                       COALESCE(SUM(CASE WHEN m.categoria = 'cuota' THEN m.monto END), 0) AS cuotas
+                FROM movimiento_caja m
+                {where}
+                """,
+                parametros,
+            )
+            t = dictfetchall(cursor)[0]
+
+            cursor.execute(
+                f"""
+                SELECT m.id, m.fecha, m.tipo, m.categoria, m.monto, m.descripcion,
+                       m.cuota_numero, m.cuotas_total, m.registrado_por,
+                       e.id AS empresa_id, e.nombre AS empresa,
+                       c.codigo_empleado AS consultor_id, c.nombre AS consultor,
+                       p.id AS proyecto_id, p.descripcion AS proyecto
+                FROM movimiento_caja m
+                LEFT JOIN empresa_cliente e ON m.empresa_id = e.id
+                LEFT JOIN consultor c ON m.consultor_id = c.codigo_empleado
+                LEFT JOIN venta v ON m.venta_id = v.id
+                LEFT JOIN proyecto p ON v.proyecto_id = p.id
+                {where}
+                ORDER BY m.fecha DESC, m.id DESC
+                LIMIT {MAX_MOVIMIENTOS_EN_PANTALLA}
+                """,
+                parametros,
+            )
+            movimientos = dictfetchall(cursor)
+
+            cursor.execute("SELECT id, nombre FROM empresa_cliente ORDER BY nombre")
+            empresas_lista = dictfetchall(cursor)
+            cursor.execute(
+                "SELECT codigo_empleado, nombre, sueldo FROM consultor ORDER BY nombre"
+            )
+            consultores_lista = dictfetchall(cursor)
+
+            # Acumulado por empresa: lo facturado (contrataciones) contra lo realmente cobrado.
+            cursor.execute(
+                "SELECT empresa_id, COALESCE(SUM(precio), 0) AS facturado "
+                "FROM venta GROUP BY empresa_id"
+            )
+            facturado = {f['empresa_id']: f['facturado'] for f in dictfetchall(cursor)}
+            cursor.execute(
+                """
+                SELECT empresa_id,
+                       COALESCE(SUM(CASE WHEN categoria IN ('cobro_proyecto', 'cuota')
+                                         THEN monto ELSE 0 END), 0) AS cobrado,
+                       COALESCE(SUM(CASE WHEN tipo = 'egreso' THEN monto ELSE 0 END), 0) AS gastos
+                FROM movimiento_caja
+                WHERE empresa_id IS NOT NULL
+                GROUP BY empresa_id
+                """
+            )
+            caja_por_empresa = {f['empresa_id']: f for f in dictfetchall(cursor)}
+
+            # Acumulado por consultor: sueldos pagados y ventas a su cargo.
+            cursor.execute(
+                "SELECT consultor_id, COUNT(*) AS ventas, COALESCE(SUM(precio), 0) AS facturado "
+                "FROM venta GROUP BY consultor_id"
+            )
+            ventas_por_consultor = {f['consultor_id']: f for f in dictfetchall(cursor)}
+            cursor.execute(
+                "SELECT consultor_id, COALESCE(SUM(monto), 0) AS pagado "
+                "FROM movimiento_caja WHERE categoria = 'sueldo' AND consultor_id IS NOT NULL "
+                "GROUP BY consultor_id"
+            )
+            sueldos_pagados = {f['consultor_id']: f['pagado'] for f in dictfetchall(cursor)}
+    except ProgrammingError as error:
+        if error.args and error.args[0] == 1146:       # "la tabla no existe"
+            return renderizar(request, 'myapp/caja.html', {'falta_tabla': True})
+        raise
+
+    ingresos, egresos = t['ingresos'], t['egresos']
+    aportes, inversiones = t['aportes'], t['inversiones']
     gastos = egresos - inversiones
-
     resumen = {
+        'saldo': ingresos - egresos,
         'ingresos': ingresos,
         'gastos': gastos,
         'inversiones': inversiones,
-        'saldo': ingresos - egresos,
         'ganancia': (ingresos - aportes) - gastos,
-        'cuotas': por_categoria.get('cuota', cero),
+        'cuotas': t['cuotas'],
+        'cantidad': t['cantidad'],
     }
 
     for m in movimientos:
-        m['categoria_nombre'] = CATEGORIAS_CAJA.get(m['categoria'], (m['categoria'], ''))[0]
-    for e in resumen_empresas:
-        e['pendiente'] = e['facturado'] - e['cobrado']
-        e['resultado'] = e['cobrado'] - e['gastos']
+        m['categoria_nombre'] = CATEGORIAS_CAJA.get(m['categoria'], {}).get('nombre', m['categoria'])
+
+    resumen_empresas = []
+    for e in empresas_lista:
+        datos = caja_por_empresa.get(e['id'], {})
+        fact = facturado.get(e['id'], Decimal('0'))
+        cobrado = datos.get('cobrado', Decimal('0'))
+        gastos_e = datos.get('gastos', Decimal('0'))
+        resumen_empresas.append({
+            'id': e['id'], 'nombre': e['nombre'],
+            'facturado': fact, 'cobrado': cobrado,
+            'pendiente': fact - cobrado,
+            'gastos': gastos_e,
+            'resultado': cobrado - gastos_e,
+        })
+
+    resumen_consultores = []
+    for c in consultores_lista:
+        ventas = ventas_por_consultor.get(c['codigo_empleado'], {})
+        resumen_consultores.append({
+            'codigo_empleado': c['codigo_empleado'], 'nombre': c['nombre'],
+            'sueldo': c['sueldo'],
+            'pagado': sueldos_pagados.get(c['codigo_empleado'], Decimal('0')),
+            'ventas': ventas.get('ventas', 0),
+            'facturado': ventas.get('facturado', Decimal('0')),
+        })
 
     return renderizar(request, 'myapp/caja.html', {
-        'falta_tabla': False,
-        'filtros': filtros,
         'resumen': resumen,
-        'movimientos': movimientos[:LIMITE_CAJA],
-        'hay_mas': len(movimientos) > LIMITE_CAJA,
-        'limite': LIMITE_CAJA,
+        'movimientos': movimientos,
+        'hay_mas': t['cantidad'] > MAX_MOVIMIENTOS_EN_PANTALLA,
+        'limite': MAX_MOVIMIENTOS_EN_PANTALLA,
+        'filtros': activos,
+        'empresas_filtro': empresas_lista,
+        'consultores_filtro': consultores_lista,
+        'categorias_filtro': _lista_categorias(),
         'resumen_empresas': resumen_empresas,
         'resumen_consultores': resumen_consultores,
-        'empresas_filtro': empresas_filtro,
-        'consultores_filtro': consultores_filtro,
-        'categorias_filtro': _categorias_caja(),
     })
 
 
-def _caja_formulario(request, mov, editando, pk=None):
-    """Lógica compartida entre 'Nuevo movimiento' y 'Editar movimiento'."""
-    with connection.cursor() as cursor:
-        cursor.execute("SELECT id, nombre FROM empresa_cliente ORDER BY nombre")
-        empresas_op = dictfetchall(cursor)
-        cursor.execute("SELECT codigo_empleado, nombre FROM consultor ORDER BY nombre")
-        consultores_op = dictfetchall(cursor)
-        ventas_op = _ventas(cursor)
+def _opciones_caja(cursor):
+    """Empresas, consultores y contrataciones para los selects del formulario."""
+    cursor.execute("SELECT id, nombre FROM empresa_cliente ORDER BY nombre")
+    empresas_lista = dictfetchall(cursor)
+    cursor.execute("SELECT codigo_empleado, nombre FROM consultor ORDER BY nombre")
+    consultores_lista = dictfetchall(cursor)
+    return empresas_lista, consultores_lista, _ventas(cursor)
 
-    ventas_por_id = {v['id']: v for v in ventas_op}
+
+def _leer_movimiento(post, empresas_lista, consultores_lista, ventas_lista):
+    """Valida el formulario de un movimiento. Devuelve (datos, errores)."""
+    errores = []
+    fecha = _fecha(post.get('fecha'))
+    categoria = post.get('categoria')
+    monto_texto = post.get('monto', '')
+    monto = _decimal(monto_texto, LIMITE_CAJA)
+    descripcion = post.get('descripcion', '').strip()
+    empresa_id = _entero(post.get('empresa'))
+    venta_id = _entero(post.get('venta'))
+    consultor_id = _entero(post.get('consultor'))
+    cuota_numero = _entero(post.get('cuota_numero'))
+    cuotas_total = _entero(post.get('cuotas_total'))
+
+    if fecha is None:
+        errores.append('Ingresá una fecha válida.')
+    if categoria not in CATEGORIAS_CAJA:
+        errores.append('Elegí una categoría.')
+    if monto is None or monto <= 0:
+        errores.append('El monto tiene que ser un número mayor a 0 (máximo 999.999.999.999,99).')
+    if len(descripcion) > 200:
+        errores.append('La descripción no puede superar los 200 caracteres.')
+
+    ventas_por_id = {v['id']: v for v in ventas_lista}
+    if venta_id is not None:
+        if venta_id in ventas_por_id:
+            empresa_id = ventas_por_id[venta_id]['empresa_id']   # la empresa sale de la contratación
+        else:
+            errores.append('La contratación elegida no es válida.')
+    if empresa_id is not None and empresa_id not in {e['id'] for e in empresas_lista}:
+        errores.append('La empresa elegida no es válida.')
+    if consultor_id is not None and consultor_id not in {c['codigo_empleado'] for c in consultores_lista}:
+        errores.append('El consultor elegido no es válido.')
+
+    if categoria in ('cobro_proyecto', 'cuota') and empresa_id is None:
+        errores.append('Un cobro tiene que estar asociado a una empresa (o a una contratación).')
+    if categoria == 'sueldo' and consultor_id is None:
+        errores.append('Elegí a qué consultor corresponde el sueldo.')
+
+    if categoria == 'cuota' and (cuota_numero or cuotas_total):
+        if not (cuota_numero and cuotas_total and 1 <= cuota_numero <= cuotas_total <= 360):
+            errores.append('Cuota inválida: completá el número y el total (el número no puede superar al total).')
+    if categoria != 'cuota':
+        cuota_numero = cuotas_total = None
+
+    datos = {
+        'fecha': fecha.isoformat() if fecha else post.get('fecha', ''),
+        'categoria': categoria or '',
+        'monto_texto': monto_texto,
+        'descripcion': descripcion,
+        'empresa_id': empresa_id,
+        'venta_id': venta_id,
+        'consultor_id': consultor_id,
+        'cuota_numero': cuota_numero,
+        'cuotas_total': cuotas_total,
+        # valores ya listos para la base
+        'fecha_db': fecha,
+        'monto_db': monto,
+        'tipo_db': CATEGORIAS_CAJA[categoria]['tipo'] if categoria in CATEGORIAS_CAJA else None,
+    }
+    return datos, errores
+
+
+def _contexto_form_caja(mov, titulo, empresas_lista, consultores_lista, ventas_lista):
+    return {
+        'mov': mov,
+        'titulo': titulo,
+        'empresas_op': empresas_lista,
+        'consultores_op': consultores_lista,
+        'ventas_op': ventas_lista,
+        'categorias_ingreso': _lista_categorias('ingreso'),
+        'categorias_egreso': _lista_categorias('egreso'),
+    }
+
+
+@login_requerido
+@requiere('caja.modificar', 'caja')
+def caja_nuevo(request):
+    with connection.cursor() as cursor:
+        empresas_lista, consultores_lista, ventas_lista = _opciones_caja(cursor)
 
     if request.method == 'POST':
-        fecha_texto = request.POST.get('fecha', '')
-        fecha = _fecha(fecha_texto)
-        categoria = request.POST.get('categoria', '')
-        monto_texto = request.POST.get('monto', '')
-        monto = _decimal(monto_texto)
-        descripcion = request.POST.get('descripcion', '').strip()
-        empresa_id = _entero(request.POST.get('empresa'))
-        consultor_id = _entero(request.POST.get('consultor'))
-        venta_id = _entero(request.POST.get('venta'))
-        cuota_numero = _entero(request.POST.get('cuota_numero'))
-        cuotas_total = _entero(request.POST.get('cuotas_total'))
-
-        errores = []
-        if fecha is None:
-            errores.append('La fecha no es válida.')
-        if categoria not in CATEGORIAS_CAJA:
-            errores.append('Elegí una categoría válida.')
-        if monto is None or monto <= 0:
-            errores.append('El monto tiene que ser mayor que cero (hasta 99.999.999,99).')
-        if len(descripcion) > 200:
-            errores.append('La descripción no puede superar los 200 caracteres.')
-
-        if venta_id is not None:
-            if venta_id in ventas_por_id:
-                # Si eligió una contratación, la empresa sale de ahí.
-                empresa_id = ventas_por_id[venta_id]['empresa_id']
-            else:
-                errores.append('La contratación elegida no es válida.')
-        if empresa_id is not None and empresa_id not in {e['id'] for e in empresas_op}:
-            errores.append('La empresa elegida no es válida.')
-        if consultor_id is not None and consultor_id not in {c['codigo_empleado'] for c in consultores_op}:
-            errores.append('El consultor elegido no es válido.')
-
-        if categoria in ('cobro_proyecto', 'cuota') and empresa_id is None:
-            errores.append('Un cobro necesita una empresa (o una contratación).')
-        if categoria == 'sueldo' and consultor_id is None:
-            errores.append('El pago de sueldo necesita un consultor.')
-
-        if categoria == 'cuota':
-            if (cuota_numero is None or cuotas_total is None
-                    or not (1 <= cuota_numero <= cuotas_total <= 360)):
-                errores.append('Completá el número de cuota y el total (el número no puede pasar al total).')
-        else:
-            cuota_numero = cuotas_total = None
-
+        mov, errores = _leer_movimiento(request.POST, empresas_lista, consultores_lista, ventas_lista)
         if not errores:
-            valores = [
-                fecha, categoria, CATEGORIAS_CAJA[categoria][1], monto, descripcion or None,
-                empresa_id, consultor_id, venta_id, cuota_numero, cuotas_total,
-            ]
             with connection.cursor() as cursor:
-                if editando:
-                    cursor.execute(
-                        """
-                        UPDATE caja SET fecha = %s, categoria = %s, tipo = %s, monto = %s,
-                               descripcion = %s, empresa_id = %s, consultor_id = %s,
-                               venta_id = %s, cuota_numero = %s, cuotas_total = %s
-                        WHERE id = %s
-                        """,
-                        valores + [pk],
-                    )
-                    messages.success(request, 'Movimiento actualizado correctamente.')
-                else:
-                    cursor.execute(
-                        """
-                        INSERT INTO caja (fecha, categoria, tipo, monto, descripcion,
-                                          empresa_id, consultor_id, venta_id,
-                                          cuota_numero, cuotas_total)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        """,
-                        valores,
-                    )
-                    messages.success(request, 'Movimiento registrado correctamente.')
+                cursor.execute(
+                    """
+                    INSERT INTO movimiento_caja
+                        (fecha, tipo, categoria, monto, descripcion, empresa_id, venta_id,
+                         consultor_id, cuota_numero, cuotas_total, registrado_por)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    [mov['fecha_db'], mov['tipo_db'], mov['categoria'], mov['monto_db'],
+                     mov['descripcion'] or None, mov['empresa_id'], mov['venta_id'],
+                     mov['consultor_id'], mov['cuota_numero'], mov['cuotas_total'],
+                     usuario_actual(request)['usuario']],
+                )
+            messages.success(request, 'Movimiento registrado en la caja.')
             return redirect('caja')
-
         for e in errores:
             messages.error(request, e)
-        # Se vuelve a mostrar el formulario con lo que la persona había escrito.
+    else:
         mov = {
-            'fecha': fecha_texto, 'categoria': categoria, 'monto_texto': monto_texto,
-            'descripcion': descripcion, 'empresa_id': empresa_id,
-            'consultor_id': consultor_id, 'venta_id': venta_id,
-            'cuota_numero': cuota_numero, 'cuotas_total': cuotas_total,
+            'fecha': date.today().isoformat(), 'categoria': '', 'monto_texto': '',
+            'descripcion': '', 'venta_id': None, 'cuota_numero': None, 'cuotas_total': None,
+            'empresa_id': _entero(request.GET.get('empresa')),
+            'consultor_id': _entero(request.GET.get('consultor')),
         }
 
-    return renderizar(request, 'myapp/caja_form.html', {
-        'titulo': 'Editar movimiento' if editando else 'Nuevo movimiento',
-        'editando': editando,
-        'mov': mov,
-        'categorias_ingreso': _categorias_caja('ingreso'),
-        'categorias_egreso': _categorias_caja('egreso'),
-        'empresas_op': empresas_op,
-        'consultores_op': consultores_op,
-        'ventas_op': ventas_op,
-    })
+    return renderizar(request, 'myapp/caja_form.html', _contexto_form_caja(
+        mov, 'Nuevo movimiento', empresas_lista, consultores_lista, ventas_lista))
 
 
 @login_requerido
-@finanzas_requerido
-def caja_nuevo(request):
-    # Los botones "Movimientos" de la caja pasan ?empresa= o ?consultor=
-    empresa_id = _entero(request.GET.get('empresa'))
-    consultor_id = _entero(request.GET.get('consultor'))
-    categoria = ''
-    if consultor_id is not None:
-        categoria = 'sueldo'
-    elif empresa_id is not None:
-        categoria = 'cobro_proyecto'
-
-    mov = {
-        'fecha': date.today().isoformat(), 'categoria': categoria, 'monto_texto': '',
-        'descripcion': '', 'empresa_id': empresa_id, 'consultor_id': consultor_id,
-        'venta_id': None, 'cuota_numero': None, 'cuotas_total': None,
-    }
-    return _caja_formulario(request, mov, editando=False)
-
-
-@login_requerido
-@finanzas_requerido
+@requiere('caja.modificar', 'caja')
 def caja_editar(request, pk):
     with connection.cursor() as cursor:
         cursor.execute(
-            """
-            SELECT id, fecha, categoria, monto, descripcion, empresa_id,
-                   consultor_id, venta_id, cuota_numero, cuotas_total
-            FROM caja WHERE id = %s
-            """,
+            "SELECT id, fecha, categoria, monto, descripcion, empresa_id, venta_id, "
+            "consultor_id, cuota_numero, cuotas_total FROM movimiento_caja WHERE id = %s",
             [pk],
         )
         fila = _primero_o_404(dictfetchall(cursor), 'Movimiento no encontrado')
+        empresas_lista, consultores_lista, ventas_lista = _opciones_caja(cursor)
 
-    mov = dict(fila, fecha=fila['fecha'].isoformat(), monto_texto=str(fila['monto']))
-    mov['descripcion'] = fila['descripcion'] or ''
-    return _caja_formulario(request, mov, editando=True, pk=pk)
-
-
-@login_requerido
-@finanzas_requerido
-def caja_eliminar(request, pk):
     if request.method == 'POST':
-        with connection.cursor() as cursor:
-            cursor.execute("DELETE FROM caja WHERE id = %s", [pk])
-        messages.success(request, 'Movimiento eliminado.')
-    return redirect('caja')
-# ---------- SOLO DEBUG: contenido crudo de administrador ----------
-# Solo para administradores. Borrala (y su ruta en urls.py) antes de entregar.
+        mov, errores = _leer_movimiento(request.POST, empresas_lista, consultores_lista, ventas_lista)
+        if not errores:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    UPDATE movimiento_caja
+                    SET fecha = %s, tipo = %s, categoria = %s, monto = %s, descripcion = %s,
+                        empresa_id = %s, venta_id = %s, consultor_id = %s,
+                        cuota_numero = %s, cuotas_total = %s
+                    WHERE id = %s
+                    """,
+                    [mov['fecha_db'], mov['tipo_db'], mov['categoria'], mov['monto_db'],
+                     mov['descripcion'] or None, mov['empresa_id'], mov['venta_id'],
+                     mov['consultor_id'], mov['cuota_numero'], mov['cuotas_total'], pk],
+                )
+            messages.success(request, 'Movimiento actualizado correctamente.')
+            return redirect('caja')
+        for e in errores:
+            messages.error(request, e)
+    else:
+        mov = {
+            'fecha': fila['fecha'].isoformat(), 'categoria': fila['categoria'],
+            'monto_texto': str(fila['monto']), 'descripcion': fila['descripcion'] or '',
+            'empresa_id': fila['empresa_id'], 'venta_id': fila['venta_id'],
+            'consultor_id': fila['consultor_id'],
+            'cuota_numero': fila['cuota_numero'], 'cuotas_total': fila['cuotas_total'],
+        }
+
+    contexto = _contexto_form_caja(
+        mov, f'Editar movimiento #{pk}', empresas_lista, consultores_lista, ventas_lista)
+    contexto['editando'] = True
+    return renderizar(request, 'myapp/caja_form.html', contexto)
+
 
 @login_requerido
-def ver_admins(request):
-    if request.session.get('rol') != 'administrador':
-        messages.error(request, 'Solo los administradores pueden ver esta página.')
-        return redirect('inicio')
-
+@requiere('caja.modificar', 'caja')
+def caja_eliminar(request, pk):
+    if request.method != 'POST':
+        return redirect('caja')
     with connection.cursor() as cursor:
-        cursor.execute("SELECT id, usuario, contrasena FROM administrador")
-        admins = dictfetchall(cursor)
-    return renderizar(request, 'myapp/admins.html', {'admins': admins})
+        cursor.execute("DELETE FROM movimiento_caja WHERE id = %s", [pk])
+    messages.success(request, 'Movimiento eliminado.')
+    return redirect('caja')
+
+
+# ---------- PANEL DE USUARIOS (solo la cuenta principal) ----------
+
+def _datos_permisos(rol, extras):
+    """Permisos listos para dibujar en el formulario: cuáles trae el rol y cuáles son extra."""
+    del_rol = permisos_efectivos(rol, set()) if rol in ROLES else set()
+    return [
+        {'clave': clave, 'etiqueta': datos['etiqueta'], 'descripcion': datos['descripcion'],
+         'del_rol': clave in del_rol, 'marcado': clave in extras and clave not in del_rol}
+        for clave, datos in PERMISOS.items()
+    ]
+
+
+@login_requerido
+@requiere('usuarios.gestionar')
+def usuarios(request):
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT id, usuario, rol, es_principal, activo, creado_en "
+            "FROM usuarios ORDER BY es_principal DESC, usuario"
+        )
+        lista = dictfetchall(cursor)
+        cursor.execute("SELECT usuario_id, permiso FROM usuario_permiso")
+        extras_por_usuario = {}
+        for usuario_id, permiso in cursor.fetchall():
+            extras_por_usuario.setdefault(usuario_id, set()).add(permiso)
+
+    for u in lista:
+        extras = extras_por_usuario.get(u['id'], set())
+        efectivos = set(PERMISOS) if u['es_principal'] else permisos_efectivos(u['rol'], extras)
+        u['rol_nombre'] = 'Administrador principal' if u['es_principal'] else ROLES.get(u['rol'], u['rol'])
+        u['permisos'] = [PERMISOS[clave]['etiqueta'] for clave in PERMISOS if clave in efectivos]
+        u['cantidad_extras'] = len(extras)
+
+    return renderizar(request, 'myapp/usuarios.html', {
+        'lista_usuarios': lista,
+        'pendientes': sum(1 for u in lista if not u['activo']),
+    })
+
+
+@login_requerido
+@requiere('usuarios.gestionar')
+def usuario_editar(request, pk):
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT id, usuario, rol, es_principal, activo, creado_en FROM usuarios WHERE id = %s",
+            [pk],
+        )
+        objetivo = _primero_o_404(dictfetchall(cursor), 'Usuario no encontrado')
+        cursor.execute("SELECT permiso FROM usuario_permiso WHERE usuario_id = %s", [pk])
+        extras = {fila[0] for fila in cursor.fetchall()}
+
+    principal = bool(objetivo['es_principal'])
+
+    if request.method == 'POST':
+        errores = []
+        if principal:
+            # La cuenta principal no se puede degradar, desactivar ni limitar.
+            rol, activo, marcados = 'administrador', 1, set()
+        else:
+            rol = request.POST.get('rol')
+            if rol not in ROLES:
+                errores.append('Elegí un rol válido.')
+            activo = 1 if request.POST.get('activo') else 0
+            marcados = set(request.POST.getlist('permisos')) & set(PERMISOS)
+        extras_nuevos = marcados - (permisos_efectivos(rol, set()) if rol in ROLES else set())
+
+        nueva_clave = request.POST.get('contrasena', '')
+        if nueva_clave:
+            errores += validar_clave(nueva_clave, objetivo['usuario'])
+
+        if not errores:
+            with transaction.atomic():
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        "UPDATE usuarios SET rol = %s, activo = %s WHERE id = %s", [rol, activo, pk]
+                    )
+                    cursor.execute("DELETE FROM usuario_permiso WHERE usuario_id = %s", [pk])
+                    for permiso in sorted(extras_nuevos):
+                        cursor.execute(
+                            "INSERT INTO usuario_permiso (usuario_id, permiso) VALUES (%s, %s)",
+                            [pk, permiso],
+                        )
+                    if nueva_clave:
+                        cursor.execute(
+                            "UPDATE usuarios SET contrasena = %s WHERE id = %s",
+                            [make_password(nueva_clave), pk],
+                        )
+            messages.success(request, f'Usuario «{objetivo["usuario"]}» actualizado.')
+            return redirect('usuarios')
+
+        for e in errores:
+            messages.error(request, e)
+        if not principal:
+            if rol in ROLES:
+                objetivo['rol'] = rol
+            objetivo['activo'] = activo
+            extras = marcados
+
+    return renderizar(request, 'myapp/usuario_editar.html', {
+        'objetivo': objetivo,
+        'principal': principal,
+        'roles': [{'clave': clave, 'nombre': nombre} for clave, nombre in ROLES.items()],
+        'permisos_lista': _datos_permisos(objetivo['rol'], extras),
+        'presets': {rol: sorted(permisos_efectivos(rol, set())) for rol in ROLES},
+    })
+
+
+@login_requerido
+@requiere('usuarios.gestionar')
+def usuario_eliminar(request, pk):
+    if request.method != 'POST':
+        return redirect('usuarios')
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT usuario, es_principal FROM usuarios WHERE id = %s", [pk])
+        fila = cursor.fetchone()
+        if not fila:
+            raise Http404('Usuario no encontrado')
+        if fila[1]:
+            messages.error(request, 'La cuenta principal no se puede eliminar.')
+            return redirect('usuarios')
+        cursor.execute("DELETE FROM usuarios WHERE id = %s", [pk])   # sus permisos se borran solos
+    messages.success(request, f'Usuario «{fila[0]}» eliminado.')
+    return redirect('usuarios')

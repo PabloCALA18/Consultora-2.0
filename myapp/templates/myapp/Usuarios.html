@@ -1,0 +1,50 @@
+{% extends 'myapp/base.html' %}
+{% block titulo %}Usuarios{% endblock %}
+
+{% block contenido %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h3 class="mb-0"><i class="bi bi-person-gear"></i> Usuarios y permisos</h3>
+    <span class="text-muted">{{ lista_usuarios|length }} usuario{{ lista_usuarios|length|pluralize }}</span>
+</div>
+
+{% if pendientes %}
+<div class="alert alert-warning"><i class="bi bi-hourglass-split"></i> Hay <strong>{{ pendientes }}</strong> cuenta{{ pendientes|pluralize }} desactivada{{ pendientes|pluralize }} o pendiente{{ pendientes|pluralize }} de aprobación. Para activarla, entrá a «Editar» y marcá «Cuenta activa».</div>
+{% endif %}
+
+<div class="card overflow-hidden">
+<div class="table-responsive">
+<table class="table table-hover align-middle mb-0">
+    <thead class="table-light">
+        <tr><th>Usuario</th><th>Rol</th><th>Qué puede hacer</th><th>Creado</th><th></th></tr>
+    </thead>
+    <tbody>
+        {% for u in lista_usuarios %}
+        <tr>
+            <td>
+                <strong>{{ u.usuario }}</strong>
+                {% if u.es_principal %}<span class="badge text-bg-warning">Principal</span>{% endif %}
+                {% if not u.activo %}<span class="badge text-bg-secondary">Desactivada</span>{% endif %}
+            </td>
+            <td><span class="badge {% if u.es_principal or u.rol == 'administrador' %}text-bg-danger{% elif u.rol == 'rrhh' %}text-bg-info{% else %}text-bg-light border{% endif %}">{{ u.rol_nombre }}</span></td>
+            <td>
+                {% for etiqueta in u.permisos %}<span class="badge rounded-pill text-bg-light border fw-normal">{{ etiqueta }}</span> {% empty %}<span class="text-muted small">Solo ver</span>{% endfor %}
+                {% if u.cantidad_extras %}<div class="small text-muted mt-1">{{ u.cantidad_extras }} permiso{{ u.cantidad_extras|pluralize }} extra</div>{% endif %}
+            </td>
+            <td class="text-nowrap">{{ u.creado_en|date:"d/m/Y" }}</td>
+            <td class="text-nowrap text-end">
+                <a href="{% url 'usuario_editar' u.id %}" class="btn btn-outline-primary btn-sm"><i class="bi bi-pencil-square"></i> Editar</a>
+                {% if not u.es_principal %}
+                <form method="post" action="{% url 'usuario_eliminar' u.id %}" class="d-inline" onsubmit="return confirm('¿Eliminar al usuario {{ u.usuario|escapejs }}? Esta acción no se puede deshacer.');">
+                    {% csrf_token %}<button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-trash"></i></button>
+                </form>
+                {% endif %}
+            </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="text-center text-muted py-4">Todavía no hay usuarios.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+</div>
+{% endblock %}

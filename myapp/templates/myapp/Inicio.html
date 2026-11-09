@@ -8,15 +8,13 @@
         <div class="col-md-7 p-4">
             <h3 class="mb-1">Hola, {{ admin_usuario }}</h3>
             <p class="mb-3 opacity-75">
-                {% if rol == 'administrador' %}Podés modificar todo el sistema.
-                {% elif rol == 'rrhh' %}Podés agregar y eliminar consultores; el resto es de solo lectura.
-                {% else %}Tenés acceso de solo lectura.{% endif %}
+                {% if puede_gestionar_usuarios %}Administrás los usuarios y los permisos de todo el sistema.
+                {% else %}Lo que podés modificar depende de los permisos que te dio el administrador.{% endif %}
             </p>
             <span class="badge text-bg-light"><i class="bi bi-shield-check"></i> {{ rol_nombre }}</span>
         </div>
         <div class="col-md-5 text-center d-none d-md-block">
             <img src="{% static 'myapp/img/equipo.svg' %}" class="img-fluid banner-img" alt="">
-            <img src="{% static 'myapp/img/icon.png' %}" alt="Consultora" height="167" width="167">
         </div>
     </div>
 </div>
@@ -66,6 +64,7 @@
     <div class="col-md-4"><div class="card"><div class="card-body"><div class="text-muted small"><i class="bi bi-wallet2"></i> Coste de los proyectos vendidos</div><div class="fs-3 fw-bold">${{ costes|floatformat:2 }}</div></div></div></div>
     <div class="col-md-4"><div class="card"><div class="card-body"><div class="text-muted small"><i class="bi bi-graph-up-arrow"></i> Margen estimado</div><div class="fs-3 fw-bold {% if margen >= 0 %}text-success{% else %}text-danger{% endif %}">${{ margen|floatformat:2 }}</div></div></div></div>
 </div>
+{% if puede_ver_caja %}<div class="text-end mb-4"><a href="{% url 'caja' %}" class="btn btn-outline-primary btn-sm"><i class="bi bi-cash-stack"></i> Ver la caja completa</a></div>{% endif %}
 {% else %}
 <div class="mb-4"></div>
 {% endif %}
@@ -115,6 +114,7 @@
             {% for c in por_categoria %}
             <div class="mb-3">
                 <div class="d-flex justify-content-between small"><span>{{ c.nombre }}</span><strong>{{ c.cantidad }}</strong></div>
+                <progress class="w-100" max="100" value="{{ c.porcentaje }}" aria-label="Progreso de {{ c.nombre }}"></progress>
             </div>
             {% empty %}
             <span class="text-muted">Todavía no hay categorías.</span>
