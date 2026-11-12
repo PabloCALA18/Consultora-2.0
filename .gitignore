@@ -13,6 +13,7 @@ __pycache__/
 *.log
 db.sqlite3
 staticfiles/
+empresa_consultora.sql
 
 # Editores / sistema
 .vscode/
